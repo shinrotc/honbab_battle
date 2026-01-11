@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1045040024438",
+    "project_id": "honbab-battle",
+    "storage_bucket": "honbab-battle.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1045040024438:android:fdb2eb8003ae0e1ebc4857",
+        "android_client_info": {
+          "package_name": "com.example.honbab_battle"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDsGTPOnG8MAAyXjxHY0qPNheayHn66lRU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
