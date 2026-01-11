@@ -13,6 +13,6 @@ List<RecipeModel> allRecipes = [
     cost: 4200,
     ingredients: ["불닭볶음면", "소시지", "치즈"],
     // [수정] 404 에러가 나지 않는 고화질 Unsplash 이미지 주소야.
-    imagePath: "https://images.unsplash.com/photo-1512058560366-cd2427ff667f?w=800",
+    imagePath: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800",
   ),
 ];
