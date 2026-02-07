@@ -10,18 +10,16 @@ class DetailScreen extends StatelessWidget {
 
   const DetailScreen({super.key, this.recipeData});
 
-  // [수정] RecipeModel 생성 시 필수 항목인 'promo'를 추가해서 빨간 에러를 해결했어!
   RecipeModel get data => recipeData ?? RecipeModel(
     title: "불닭+치즈+소시지 조합",
-    promo: "편의점 최고의 맵단 조합! 🔥", // [추가]
+    promo: "편의점 최고의 맵단 조합! 🔥",
     category: "혼밥",
     recipe: "물 끓여서 면 익히고 물은 3스푼만 남기고 버립니다.\n소스 다 넣고, 소시지 썰어 올리고, 치즈 찢어 올립니다.\n전자레인지 2분 돌리면 끝!",
     cost: 4200,
     ingredients: ["불닭볶음면 큰컵", "의성마늘 후랑크", "스트링 치즈"],
-    imagePath: "https://images.unsplash.com/photo-1563379926898-05f4575a45d8?auto=format&fit=crop&w=800&q=80",
+    imagePath: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800",
   );
 
-  // 마켓컬리 쇼핑몰로 연결해주는 기능이야
   Future<void> _launchShopping(String query) async {
     final Uri uri = Uri.parse("https://www.kurly.com/search?said=$query");
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
@@ -29,7 +27,13 @@ class DetailScreen extends StatelessWidget {
     }
   }
 
-  // 네이버 지도로 편의점을 찾아주는 기능이야
+  Future<void> _launchCoupang(String query) async {
+    final Uri uri = Uri.parse("https://www.coupang.com/np/search?q=$query");
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      debugPrint("쿠팡 연결 실패");
+    }
+  }
+
   Future<void> _launchMap(String storeName) async {
     final String query = Uri.encodeComponent(storeName);
     final Uri appUri = Uri.parse("nmap://search?query=$query&appname=com.example.honbab_battle");
@@ -46,7 +50,6 @@ class DetailScreen extends StatelessWidget {
     }
   }
 
-  // 재료 찾기 버튼을 누르면 나오는 메뉴판(바텀시트)이야
   void _showSearchOptions(BuildContext context, String ingredientName) {
     showModalBottomSheet(
       context: context,
@@ -107,7 +110,6 @@ class DetailScreen extends StatelessWidget {
                 children: [
                   Text(data.title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
-                  // [추가] 한 줄 홍보 문구를 제목 바로 아래 배치했어
                   Text(data.promo, style: TextStyle(fontSize: 14, color: Colors.orange[700], fontWeight: FontWeight.w500)),
                   const SizedBox(height: 8),
                   _buildAuthorRow(),
@@ -173,24 +175,28 @@ class DetailScreen extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _launchShopping(name),
-                  icon: const Icon(Icons.shopping_cart_outlined, size: 14, color: Color(0xFF5F0080)),
-                  label: const Text("마켓컬리", style: TextStyle(fontSize: 12, color: Color(0xFF5F0080), fontWeight: FontWeight.bold)),
-                  // [수정] withOpacity 대신 최신 문법인 withValues 사용!
-                  style: OutlinedButton.styleFrom(side: BorderSide(color: const Color(0xFF5F0080).withValues(alpha: 0.3))),
-                ),
+              // [디자인 업데이트] 컬리: 보라색 + 쇼핑백 아이콘
+              _buildActionButton(
+                onPressed: () => _launchShopping(name),
+                icon: Icons.shopping_bag_outlined,
+                label: "컬리",
+                color: const Color(0xFF5F0080),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _showSearchOptions(context, name),
-                  icon: const Icon(Icons.location_on_outlined, size: 14, color: Colors.blue),
-                  label: const Text("재료찾기", style: TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold)),
-                  // [수정] 여기도 withValues로 교체!
-                  style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.withValues(alpha: 0.3))),
-                ),
+              const SizedBox(width: 6),
+              // [디자인 업데이트] 쿠팡: 쿠팡 레드 + 로켓 아이콘 (로켓 배송!)
+              _buildActionButton(
+                onPressed: () => _launchCoupang(name),
+                icon: Icons.rocket_launch_outlined,
+                label: "쿠팡",
+                color: const Color(0xFFE52528), 
+              ),
+              const SizedBox(width: 6),
+              // [디자인 업데이트] 찾기: 블루 + 지도 아이콘
+              _buildActionButton(
+                onPressed: () => _showSearchOptions(context, name),
+                icon: Icons.map_outlined,
+                label: "찾기",
+                color: Colors.blue,
               ),
             ],
           )
@@ -199,8 +205,23 @@ class DetailScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildActionButton({required VoidCallback onPressed, required IconData icon, required String label, required Color color}) {
+    return Expanded(
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 14, color: color),
+        label: Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          side: BorderSide(color: color.withValues(alpha: 0.3)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+    );
+  }
+
   Widget _buildAuthorRow() => Row(children: [const CircleAvatar(radius: 12, backgroundColor: Colors.grey), const SizedBox(width: 8), Text("자취9단승규", style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold)), const Spacer(), const Icon(Icons.favorite, color: Colors.red), const Text(" 128", style: TextStyle(fontWeight: FontWeight.bold))]);
-  Widget _buildTipBox() => Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: const Color(0xFFF3E8FF), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE9D5FF))), child: const Row(children: [Icon(Icons.lightbulb, color: Colors.purple, size: 18), SizedBox(width: 15), Expanded(child: Text("싸게 사려면 [마켓컬리], 당장 먹고 싶으면 [재료찾기]를 누르세요.", style: TextStyle(color: Color(0xFF9333EA), fontSize: 11, height: 1.3)))]));
+  Widget _buildTipBox() => Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: const Color(0xFFF3E8FF), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE9D5FF))), child: const Row(children: [Icon(Icons.lightbulb, color: Colors.purple, size: 18), SizedBox(width: 15), Expanded(child: Text("[쿠팡]과 [컬리]에서 가격을 비교하고 알뜰하게 쇼핑하세요!", style: TextStyle(color: Color(0xFF9333EA), fontSize: 11, height: 1.3)))]));
 
   Widget _buildRecipeHeader(BuildContext context) => Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween, 
@@ -233,14 +254,31 @@ class DetailScreen extends StatelessWidget {
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Colors.grey[200]!)), 
-        // [수정] 여기도 withValues로 깔끔하게 교체!
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))]),
+        decoration: BoxDecoration(
+          color: Colors.white, 
+          border: Border(top: BorderSide(color: Colors.grey[200]!)), 
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))]
+        ),
         child: Row(
           children: [
-            const Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [Text("현재 랭킹", style: TextStyle(fontSize: 11, color: Colors.grey)), Row(children: [Text("🔥", style: TextStyle(fontSize: 14)), SizedBox(width: 4), Text("실시간 3위", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))])]),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start, 
+              mainAxisSize: MainAxisSize.min, 
+              children: [
+                Text("현재 랭킹", style: TextStyle(fontSize: 11, color: Colors.grey)), 
+                Row(children: [Text("🔥", style: TextStyle(fontSize: 14)), SizedBox(width: 4), Text("실시간 3위", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))])
+              ]
+            ),
             const Spacer(),
-            SizedBox(width: 160, height: 50, child: ElevatedButton(onPressed: () {}, style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), elevation: 0), child: const Text("투표하기", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)))),
+            SizedBox(
+              width: 160, 
+              height: 50, 
+              child: ElevatedButton(
+                onPressed: () {}, 
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), elevation: 0), 
+                child: const Text("투표하기", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))
+              )
+            ),
           ],
         ),
       ),
