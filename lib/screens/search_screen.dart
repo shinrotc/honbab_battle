@@ -65,7 +65,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   TextSpan(
                     children: [
                       TextSpan(
-                        text: "${_budget.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}",
+                        text: _budget.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},'),
                         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.orange)
                       ),
                       const TextSpan(text: "원 이하", style: TextStyle(fontSize: 14, color: Colors.grey)),

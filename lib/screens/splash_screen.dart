@@ -67,7 +67,7 @@ class _SplashScreenState extends State<SplashScreen> {
             Text(
               "자취생들의 리얼 요리 배틀",
               style: TextStyle(
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha:0.8),
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
