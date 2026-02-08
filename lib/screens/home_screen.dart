@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // [핵심] 웹/모바일 판단용
+import 'package:flutter/foundation.dart'; 
+import 'package:cloud_firestore/cloud_firestore.dart'; // [추가] 실시간 감시용
 import '../global_data.dart';
 import '../models/recipe_model.dart';
 import 'detail_screen.dart';
@@ -17,17 +18,27 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String _selectedCategory = "전체";
 
+  // 🔥 [핵심 추가] 파이어베이스에서 레시피 목록을 실시간으로 가져오는 스트림
+  Stream<List<RecipeModel>> _getRecipeStream() {
+    Query query = FirebaseFirestore.instance.collection('recipes')
+        .orderBy('createdAt', descending: true); // 최신순 정렬
+
+    // 카테고리가 '전체'가 아닐 때만 필터링 걸기
+    if (_selectedCategory != "전체") {
+      query = query.where('category', isEqualTo: _selectedCategory);
+    }
+
+    return query.snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) {
+        return RecipeModel.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+      }).toList();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    // 데이터 필터링 로직
-    List<RecipeModel> filteredRecipes = _selectedCategory == "전체"
-        ? allRecipes
-        : allRecipes.where((r) => r.category == _selectedCategory).toList();
-
     return Scaffold(
       backgroundColor: Colors.white,
-      
-      // [디자인 유지] 상단 앱바 디자인 (로고 + 알림 종 모양)
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -39,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: const Icon(Icons.restaurant, color: Colors.orange, size: 16),
             ),
             const SizedBox(width: 8),
-            const Text("혼밥대전", style: TextStyle(color: Colors.orange, fontSize: 20, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
+            const Text("혼밥대전", style: TextStyle(color: Colors.orange, fontSize: 20, fontWeight: FontWeight.bold, fontStyle: FontStyle.italic)),
           ],
         ),
         actions: [
@@ -64,10 +75,9 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // [디자인 유지] 주황색 그라데이션 이벤트 배너
             _buildBanner(context),
             
-            // [디자인 유지] 카테고리 가로 스크롤
+            // 카테고리 가로 스크롤 (디자인 유지)
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -76,36 +86,58 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Text("$_selectedCategory 레시피 (${filteredRecipes.length})", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
+            // 🔥 [핵심 수정] 실시간 데이터 빌더 적용
+            StreamBuilder<List<RecipeModel>>(
+              stream: _getRecipeStream(), // 우리가 만든 실시간 파이프 연결
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.all(50.0),
+                    child: Center(child: CircularProgressIndicator(color: Colors.orange)),
+                  );
+                }
 
-                  // [데이터 연결] 필터링된 레시피 카드 출력
-                  ...filteredRecipes.map((recipe) => _buildFeedCard(
-                    context,
-                    recipe: recipe,
-                  )),
-                ],
-              ),
+                if (snapshot.hasError) {
+                  return Center(child: Text("데이터를 불러오지 못했습니다: ${snapshot.error}"));
+                }
+
+                final recipes = snapshot.data ?? [];
+
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Text(
+                            "$_selectedCategory 레시피 (${recipes.length})", 
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                          ),
+                        ),
+                      ),
+
+                      if (recipes.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 40),
+                          child: Text("아직 등록된 레시피가 없어요. 👨‍🍳", style: TextStyle(color: Colors.grey)),
+                        )
+                      else
+                        ...recipes.map((recipe) => _buildFeedCard(context, recipe: recipe)),
+                    ],
+                  ),
+                );
+              }
             ),
             const SizedBox(height: 20),
           ],
         ),
       ),
-      
-      // [수정] MainScreen에서 글쓰기를 담당하므로, 중복되는 floatingActionButton(연필 아이콘)을 삭제했어!
     );
   }
 
-  // --- 부품 위젯들 (승규의 디자인 원본 유지) ---
+  // --- 부품 위젯들 (승규의 디자인 원본 100% 유지) ---
 
   Widget _buildBanner(BuildContext context) {
     return Container(
@@ -201,7 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(recipe.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  Text(recipe.recipe, style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Text(recipe.promo, style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -211,7 +243,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const Spacer(),
                       const Icon(Icons.favorite, color: Colors.red, size: 16),
                       const SizedBox(width: 4),
-                      const Text("128", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text("${recipe.likesCount}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                     ],
                   )
                 ],
@@ -223,7 +255,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // [웹 대응 이미지 로직] 크롬에서도 에러 없이 작동해!
   Widget _buildImageWidget(String? path) {
     if (path == null) return Container(height: 220, color: Colors.grey[200]);
     if (path.startsWith('http')) return Image.network(path, height: 220, width: double.infinity, fit: BoxFit.cover);

@@ -2,7 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'; 
 import 'package:image_picker/image_picker.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // [추가] 파이어베이스 연결용
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart'; // [추가] 이미지 창고 연결용
 import '../models/recipe_model.dart';
 
 class WriteScreen extends StatefulWidget {
@@ -19,13 +20,13 @@ class _WriteScreenState extends State<WriteScreen> {
   final TextEditingController _costController = TextEditingController();
 
   File? _selectedImage;
+  XFile? _pickedFile; // [수정] 웹에서 바이트 데이터를 읽기 위해 원본 객체 보관
   String? _webImagePath; 
   final ImagePicker _picker = ImagePicker();
 
   final List<String> writeCategories = ["혼밥", "다이어트", "혼술안주"];
   late String selectedCategory;
 
-  // [추가] 서버 전송 중인지 확인하는 변수 (중복 등록 방지!)
   bool _isLoading = false;
 
   @override
@@ -37,12 +38,13 @@ class _WriteScreenState extends State<WriteScreen> {
   Future<void> _pickImage() async {
     final XFile? pickedFile = await _picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 50,
+      imageQuality: 50, // 용량 절약을 위한 압축!
       maxWidth: 1024,
     );
 
     if (pickedFile != null) {
       setState(() {
+        _pickedFile = pickedFile; // 원본 보관
         if (kIsWeb) {
           _webImagePath = pickedFile.path;
         } else {
@@ -52,9 +54,8 @@ class _WriteScreenState extends State<WriteScreen> {
     }
   }
 
-  // 🔥 [핵심 추가] 파이어베이스에 레시피 저장하는 함수
+  // 🔥 [핵심 변경] 이미지 업로드 후 진짜 주소를 받아오는 함수
   Future<void> _uploadRecipe() async {
-    // 1. 유효성 검사 (제목/사진 필수)
     bool hasImage = kIsWeb ? _webImagePath != null : _selectedImage != null;
     if (_titleController.text.isEmpty || !hasImage) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -63,10 +64,30 @@ class _WriteScreenState extends State<WriteScreen> {
       return;
     }
 
-    setState(() => _isLoading = true); // 로딩 시작!
+    setState(() => _isLoading = true);
 
     try {
-      // 2. 새로운 레시피 객체 생성 (우리가 업그레이드한 모델 사용)
+      String downloadUrl = "";
+
+      // 1. Firebase Storage에 이미지 먼저 업로드하기
+      if (_pickedFile != null) {
+        String fileName = "recipe_${DateTime.now().millisecondsSinceEpoch}.jpg";
+        Reference ref = FirebaseStorage.instance.ref().child('recipes/$fileName');
+
+        if (kIsWeb) {
+          // 웹 환경: 바이트 데이터를 직접 전송
+          Uint8List bytes = await _pickedFile!.readAsBytes();
+          await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+        } else {
+          // 모바일 환경: 파일 직접 전송
+          await ref.putFile(_selectedImage!);
+        }
+
+        // 🌍 [마법의 문장] 업로드된 사진의 '진짜 인터넷 주소' 낚아채기!
+        downloadUrl = await ref.getDownloadURL();
+      }
+
+      // 2. 새로운 레시피 객체 생성 (임시 blob 주소 대신 진짜 downloadUrl 저장!)
       final newRecipe = RecipeModel(
         title: _titleController.text.trim(),
         promo: _promoController.text.isEmpty ? "맛있는 레시피를 확인해보세요!" : _promoController.text.trim(),
@@ -74,34 +95,31 @@ class _WriteScreenState extends State<WriteScreen> {
         recipe: _recipeController.text.trim(),
         cost: int.tryParse(_costController.text) ?? 0,
         ingredients: _recipeController.text.split('\n').where((s) => s.trim().isNotEmpty).toList(),
-        // [주의] 이미지는 나중에 Firebase Storage에 올리는 로직을 따로 배워야 해!
-        // 지금은 일단 경로 문자열만 저장해서 텍스트 연동부터 확인하자.
-        imagePath: kIsWeb ? _webImagePath : _selectedImage?.path,
-        authorId: "test_user_sy", // 나중에 실제 로그인 유저 ID로 교체!
+        imagePath: downloadUrl, // 👈 여기가 핵심! 진짜 주소가 저장됩니다.
+        authorId: "자취9단승규", 
         likesCount: 0,
         createdAt: DateTime.now(),
       );
 
-      // 3. 파이어베이스 Firestore 'recipes' 컬렉션에 발사!
+      // 3. Firestore에 데이터 최종 저장
       await FirebaseFirestore.instance
           .collection('recipes')
           .add(newRecipe.toMap());
 
       if (mounted) {
-        Navigator.pop(context); // 성공하면 화면 닫기
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("[$selectedCategory] 섹션에 실시간 등록되었습니다! 🚀"))
+          SnackBar(content: Text("[$selectedCategory] 섹션에 선명한 사진과 함께 등록됐어요! 🚀"))
         );
       }
     } catch (e) {
-      // 에러 발생 시 처리
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("등록 실패: $e"))
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false); // 로딩 끝!
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -116,6 +134,8 @@ class _WriteScreenState extends State<WriteScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ... (build 함수 부분은 승규가 준 것과 동일하므로 생략, 그대로 사용해!)
+    // _isLoading ? null : _uploadRecipe 부분이 이미 잘 되어 있네!
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -228,19 +248,16 @@ class _WriteScreenState extends State<WriteScreen> {
           ],
         ),
       ),
-
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: ElevatedButton(
-            // [수정] _isLoading이 true일 때는 클릭 안 되게 막기!
             onPressed: _isLoading ? null : _uploadRecipe,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
-            // [수정] 로딩 중일 때는 동그라미 로딩바 보여주기
             child: _isLoading 
               ? const SizedBox(
                   height: 20, 
