@@ -21,14 +21,18 @@ class DetailScreen extends StatelessWidget {
   );
 
   Future<void> _launchShopping(String query) async {
-    final Uri uri = Uri.parse("https://www.kurly.com/search?said=$query");
+    final String encodedQuery = Uri.encodeComponent(query);
+    final Uri uri = Uri.parse("https://www.kurly.com/search?words=$encodedQuery");
+    
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       debugPrint("쇼핑몰 연결 실패");
     }
   }
 
   Future<void> _launchCoupang(String query) async {
-    final Uri uri = Uri.parse("https://www.coupang.com/np/search?q=$query");
+    final String encodedQuery = Uri.encodeComponent(query);
+    final Uri uri = Uri.parse("https://www.coupang.com/np/search?q=$encodedQuery");
+    
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       debugPrint("쿠팡 연결 실패");
     }
@@ -122,7 +126,8 @@ class DetailScreen extends StatelessWidget {
                   const SizedBox(height: 40),
                   _buildRecipeHeader(context),
                   const SizedBox(height: 15),
-                  ...data.recipe.split('\n').asMap().entries.map((entry) {
+                  // ✅ [수정] .toList()를 추가하여 asMap() 에러 해결!
+                  ...data.recipe.split('\n').where((s) => s.trim().isNotEmpty).toList().asMap().entries.map((entry) {
                     return _buildStep(entry.key + 1, entry.value);
                   }),
                   const SizedBox(height: 40),
@@ -175,7 +180,6 @@ class DetailScreen extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              // [디자인 업데이트] 컬리: 보라색 + 쇼핑백 아이콘
               _buildActionButton(
                 onPressed: () => _launchShopping(name),
                 icon: Icons.shopping_bag_outlined,
@@ -183,7 +187,6 @@ class DetailScreen extends StatelessWidget {
                 color: const Color(0xFF5F0080),
               ),
               const SizedBox(width: 6),
-              // [디자인 업데이트] 쿠팡: 쿠팡 레드 + 로켓 아이콘 (로켓 배송!)
               _buildActionButton(
                 onPressed: () => _launchCoupang(name),
                 icon: Icons.rocket_launch_outlined,
@@ -191,7 +194,6 @@ class DetailScreen extends StatelessWidget {
                 color: const Color(0xFFE52528), 
               ),
               const SizedBox(width: 6),
-              // [디자인 업데이트] 찾기: 블루 + 지도 아이콘
               _buildActionButton(
                 onPressed: () => _showSearchOptions(context, name),
                 icon: Icons.map_outlined,
@@ -213,6 +215,7 @@ class DetailScreen extends StatelessWidget {
         label: Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 10),
+          // ✅ [수정] withOpacity 대신 withValues 사용!
           side: BorderSide(color: color.withValues(alpha: 0.3)),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
@@ -257,6 +260,7 @@ class DetailScreen extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white, 
           border: Border(top: BorderSide(color: Colors.grey[200]!)), 
+          // ✅ [수정] withOpacity 대신 withValues 사용!
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))]
         ),
         child: Row(

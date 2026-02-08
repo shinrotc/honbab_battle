@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'; 
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart'; // [추가] 이미지 창고 연결용
+import 'package:firebase_storage/firebase_storage.dart'; 
 import '../models/recipe_model.dart';
 
 class WriteScreen extends StatefulWidget {
@@ -16,11 +16,12 @@ class WriteScreen extends StatefulWidget {
 class _WriteScreenState extends State<WriteScreen> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _promoController = TextEditingController(); 
-  final TextEditingController _recipeController = TextEditingController();
+  final TextEditingController _ingredientsController = TextEditingController(); // [추가] 재료 전용
+  final TextEditingController _recipeController = TextEditingController();      // [수정] 조리법 전용
   final TextEditingController _costController = TextEditingController();
 
   File? _selectedImage;
-  XFile? _pickedFile; // [수정] 웹에서 바이트 데이터를 읽기 위해 원본 객체 보관
+  XFile? _pickedFile; 
   String? _webImagePath; 
   final ImagePicker _picker = ImagePicker();
 
@@ -38,13 +39,13 @@ class _WriteScreenState extends State<WriteScreen> {
   Future<void> _pickImage() async {
     final XFile? pickedFile = await _picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 50, // 용량 절약을 위한 압축!
+      imageQuality: 50, 
       maxWidth: 1024,
     );
 
     if (pickedFile != null) {
       setState(() {
-        _pickedFile = pickedFile; // 원본 보관
+        _pickedFile = pickedFile; 
         if (kIsWeb) {
           _webImagePath = pickedFile.path;
         } else {
@@ -54,12 +55,16 @@ class _WriteScreenState extends State<WriteScreen> {
     }
   }
 
-  // 🔥 [핵심 변경] 이미지 업로드 후 진짜 주소를 받아오는 함수
   Future<void> _uploadRecipe() async {
     bool hasImage = kIsWeb ? _webImagePath != null : _selectedImage != null;
-    if (_titleController.text.isEmpty || !hasImage) {
+    
+    // 필수 입력값 체크 (재료와 조리법도 필수!)
+    if (_titleController.text.isEmpty || 
+        _ingredientsController.text.isEmpty || 
+        _recipeController.text.isEmpty || 
+        !hasImage) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("사진과 제목은 필수입니다! 📸"))
+        const SnackBar(content: Text("사진, 제목, 재료, 조리법은 모두 필수입니다! 🍳"))
       );
       return;
     }
@@ -69,39 +74,34 @@ class _WriteScreenState extends State<WriteScreen> {
     try {
       String downloadUrl = "";
 
-      // 1. Firebase Storage에 이미지 먼저 업로드하기
       if (_pickedFile != null) {
         String fileName = "recipe_${DateTime.now().millisecondsSinceEpoch}.jpg";
         Reference ref = FirebaseStorage.instance.ref().child('recipes/$fileName');
 
         if (kIsWeb) {
-          // 웹 환경: 바이트 데이터를 직접 전송
           Uint8List bytes = await _pickedFile!.readAsBytes();
           await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
         } else {
-          // 모바일 환경: 파일 직접 전송
           await ref.putFile(_selectedImage!);
         }
 
-        // 🌍 [마법의 문장] 업로드된 사진의 '진짜 인터넷 주소' 낚아채기!
         downloadUrl = await ref.getDownloadURL();
       }
 
-      // 2. 새로운 레시피 객체 생성 (임시 blob 주소 대신 진짜 downloadUrl 저장!)
+      // [핵심 변경] 재료는 리스트로 쪼개고, 조리법은 통글로 저장
       final newRecipe = RecipeModel(
         title: _titleController.text.trim(),
         promo: _promoController.text.isEmpty ? "맛있는 레시피를 확인해보세요!" : _promoController.text.trim(),
         category: selectedCategory,
-        recipe: _recipeController.text.trim(),
+        ingredients: _ingredientsController.text.split('\n').where((s) => s.trim().isNotEmpty).toList(), // 👈 재료 컨트롤러 사용!
+        recipe: _recipeController.text.trim(), // 👈 조리법만 담기
         cost: int.tryParse(_costController.text) ?? 0,
-        ingredients: _recipeController.text.split('\n').where((s) => s.trim().isNotEmpty).toList(),
-        imagePath: downloadUrl, // 👈 여기가 핵심! 진짜 주소가 저장됩니다.
+        imagePath: downloadUrl,
         authorId: "자취9단승규", 
         likesCount: 0,
         createdAt: DateTime.now(),
       );
 
-      // 3. Firestore에 데이터 최종 저장
       await FirebaseFirestore.instance
           .collection('recipes')
           .add(newRecipe.toMap());
@@ -109,7 +109,7 @@ class _WriteScreenState extends State<WriteScreen> {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("[$selectedCategory] 섹션에 선명한 사진과 함께 등록됐어요! 🚀"))
+          SnackBar(content: Text("[$selectedCategory] 레시피가 완벽하게 등록됐어요! 🚀"))
         );
       }
     } catch (e) {
@@ -127,6 +127,7 @@ class _WriteScreenState extends State<WriteScreen> {
   void dispose() {
     _titleController.dispose();
     _promoController.dispose();
+    _ingredientsController.dispose(); // [추가]
     _recipeController.dispose();
     _costController.dispose();
     super.dispose();
@@ -134,8 +135,6 @@ class _WriteScreenState extends State<WriteScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ... (build 함수 부분은 승규가 준 것과 동일하므로 생략, 그대로 사용해!)
-    // _isLoading ? null : _uploadRecipe 부분이 이미 잘 되어 있네!
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -222,13 +221,27 @@ class _WriteScreenState extends State<WriteScreen> {
             ),
             const SizedBox(height: 30),
 
-            const Text("간단 레시피 & 재료", style: TextStyle(fontWeight: FontWeight.bold)),
+            // [수정 포인트 1] 필수 재료 입력창
+            const Text("필수 재료", style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _ingredientsController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: "예: 냉동 새우 15마리\n마라소스 3스푼\n(엔터로 구분해서 적어주세요)",
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 30),
+
+            // [수정 포인트 2] 조리 방법 입력창
+            const Text("조리 방법", style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             TextField(
               controller: _recipeController,
-              maxLines: 5,
+              maxLines: 8,
               decoration: InputDecoration(
-                hintText: "재료를 엔터(줄바꿈)로 구분해서 적어주세요.",
+                hintText: "1. 새우를 깨끗이 씻어줍니다.\n2. 팬에 기름을 두르고...",
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
