@@ -58,9 +58,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.3),
+                    Colors.black.withValues(alpha:0.3),
                     Colors.transparent,
-                    Colors.black.withOpacity(0.9),
+                    Colors.black.withValues(alpha:0.9),
                   ],
                 ),
               ),
@@ -91,14 +91,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             boxShadow: [
                               // 반투명 링 효과
                               BoxShadow(
-                                color: Colors.white.withOpacity(0.3),
+                                color: Colors.white.withValues(alpha:0.3),
                                 blurRadius: 0,
                                 spreadRadius: 6,
                                 offset: const Offset(0, 0),
                               ),
                               // 그림자
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.3),
+                                color: Colors.black.withValues(alpha:0.3),
                                 blurRadius: 20,
                                 offset: const Offset(0, 10),
                               ),

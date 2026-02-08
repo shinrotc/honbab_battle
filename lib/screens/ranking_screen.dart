@@ -200,12 +200,12 @@ class _RankingScreenState extends State<RankingScreen> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             // 1등이고 추천순이면 주황색 테두리
-            color: (showMedal && rank == 1) ? Colors.orange.withOpacity(0.5) : Colors.grey[200]!,
+            color: (showMedal && rank == 1) ? Colors.orange.withValues(alpha:0.5) : Colors.grey[200]!,
             width: (showMedal && rank == 1) ? 2 : 1
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.05),
+              color: Colors.grey.withValues(alpha:0.05),
               blurRadius: 10,
               offset: const Offset(0, 5),
             )

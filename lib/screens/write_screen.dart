@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // [추가] 웹/모바일 판단용
+import 'package:flutter/foundation.dart'; 
 import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // [추가] 파이어베이스 연결용
 import '../models/recipe_model.dart';
-import '../global_data.dart'; // 전역 바구니와 카테고리 명단 가져오기
 
 class WriteScreen extends StatefulWidget {
   const WriteScreen({super.key});
@@ -13,31 +13,31 @@ class WriteScreen extends StatefulWidget {
 }
 
 class _WriteScreenState extends State<WriteScreen> {
-  // [1] 데이터 수집용 컨트롤러 (promo 추가)
   final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _promoController = TextEditingController(); // [추가] 한 줄 홍보용
+  final TextEditingController _promoController = TextEditingController(); 
   final TextEditingController _recipeController = TextEditingController();
   final TextEditingController _costController = TextEditingController();
 
   File? _selectedImage;
-  String? _webImagePath; // 웹 환경을 위한 이미지 경로 저장
+  String? _webImagePath; 
   final ImagePicker _picker = ImagePicker();
 
-  // [2] 홈 화면과 일치시킨 카테고리 명단
   final List<String> writeCategories = ["혼밥", "다이어트", "혼술안주"];
   late String selectedCategory;
+
+  // [추가] 서버 전송 중인지 확인하는 변수 (중복 등록 방지!)
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    selectedCategory = writeCategories[0]; // 초기값: 혼밥
+    selectedCategory = writeCategories[0];
   }
 
-  // [3] 사진 선택 및 압축 함수
   Future<void> _pickImage() async {
     final XFile? pickedFile = await _picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 50, // 용량 최적화를 위한 50% 압축
+      imageQuality: 50,
       maxWidth: 1024,
     );
 
@@ -52,10 +52,63 @@ class _WriteScreenState extends State<WriteScreen> {
     }
   }
 
+  // 🔥 [핵심 추가] 파이어베이스에 레시피 저장하는 함수
+  Future<void> _uploadRecipe() async {
+    // 1. 유효성 검사 (제목/사진 필수)
+    bool hasImage = kIsWeb ? _webImagePath != null : _selectedImage != null;
+    if (_titleController.text.isEmpty || !hasImage) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("사진과 제목은 필수입니다! 📸"))
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true); // 로딩 시작!
+
+    try {
+      // 2. 새로운 레시피 객체 생성 (우리가 업그레이드한 모델 사용)
+      final newRecipe = RecipeModel(
+        title: _titleController.text.trim(),
+        promo: _promoController.text.isEmpty ? "맛있는 레시피를 확인해보세요!" : _promoController.text.trim(),
+        category: selectedCategory,
+        recipe: _recipeController.text.trim(),
+        cost: int.tryParse(_costController.text) ?? 0,
+        ingredients: _recipeController.text.split('\n').where((s) => s.trim().isNotEmpty).toList(),
+        // [주의] 이미지는 나중에 Firebase Storage에 올리는 로직을 따로 배워야 해!
+        // 지금은 일단 경로 문자열만 저장해서 텍스트 연동부터 확인하자.
+        imagePath: kIsWeb ? _webImagePath : _selectedImage?.path,
+        authorId: "test_user_sy", // 나중에 실제 로그인 유저 ID로 교체!
+        likesCount: 0,
+        createdAt: DateTime.now(),
+      );
+
+      // 3. 파이어베이스 Firestore 'recipes' 컬렉션에 발사!
+      await FirebaseFirestore.instance
+          .collection('recipes')
+          .add(newRecipe.toMap());
+
+      if (mounted) {
+        Navigator.pop(context); // 성공하면 화면 닫기
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("[$selectedCategory] 섹션에 실시간 등록되었습니다! 🚀"))
+        );
+      }
+    } catch (e) {
+      // 에러 발생 시 처리
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("등록 실패: $e"))
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false); // 로딩 끝!
+    }
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
-    _promoController.dispose(); // [추가]
+    _promoController.dispose();
     _recipeController.dispose();
     _costController.dispose();
     super.dispose();
@@ -76,7 +129,6 @@ class _WriteScreenState extends State<WriteScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 카테고리 선택
             const Text("카테고리 선택", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 10),
             Row(
@@ -101,7 +153,6 @@ class _WriteScreenState extends State<WriteScreen> {
             ),
             const SizedBox(height: 30),
 
-            // 사진 등록 영역 (웹 대응 완료)
             const Text("요리 완성샷 *", style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             GestureDetector(
@@ -113,7 +164,7 @@ class _WriteScreenState extends State<WriteScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.grey[300]!),
-                  image: _buildPreviewImage(), // 미리보기 로직 분리
+                  image: _buildPreviewImage(),
                 ),
                 child: (_selectedImage == null && _webImagePath == null)
                   ? Column(
@@ -129,7 +180,6 @@ class _WriteScreenState extends State<WriteScreen> {
             ),
             const SizedBox(height: 30),
 
-            // 요리 이름 입력
             const Text("요리 이름", style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             TextField(
@@ -141,7 +191,6 @@ class _WriteScreenState extends State<WriteScreen> {
             ),
             const SizedBox(height: 30),
 
-            // [추가] 한 줄 홍보 입력 (에러 해결 핵심 포인트!)
             const Text("한 줄 홍보 (피드 노출용)", style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             TextField(
@@ -153,7 +202,6 @@ class _WriteScreenState extends State<WriteScreen> {
             ),
             const SizedBox(height: 30),
 
-            // 레시피 & 재료 입력
             const Text("간단 레시피 & 재료", style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             TextField(
@@ -166,7 +214,6 @@ class _WriteScreenState extends State<WriteScreen> {
             ),
             const SizedBox(height: 30),
 
-            // 비용 입력
             const Text("총 비용 (선택)", style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             TextField(
@@ -186,48 +233,27 @@ class _WriteScreenState extends State<WriteScreen> {
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: ElevatedButton(
-            onPressed: () {
-              // 사진 체크 (웹/모바일 통합)
-              bool hasImage = kIsWeb ? _webImagePath != null : _selectedImage != null;
-              
-              if (_titleController.text.isEmpty || !hasImage) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("사진과 제목은 필수입니다! 📸"))
-                );
-                return;
-              }
-
-              // [수정] 새로운 레시피 객체 생성 시 promo 전달 (에러 해결!)
-              final newRecipe = RecipeModel(
-                title: _titleController.text,
-                promo: _promoController.text.isEmpty ? "맛있는 레시피를 확인해보세요!" : _promoController.text,
-                category: selectedCategory,
-                recipe: _recipeController.text,
-                cost: int.tryParse(_costController.text) ?? 0,
-                ingredients: _recipeController.text.split('\n').where((s) => s.trim().isNotEmpty).toList(),
-                imagePath: kIsWeb ? _webImagePath : _selectedImage?.path,
-              );
-
-              allRecipes.insert(0, newRecipe);
-              Navigator.pop(context);
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("[$selectedCategory] 섹션에 등록되었습니다! 🚀"))
-              );
-            },
+            // [수정] _isLoading이 true일 때는 클릭 안 되게 막기!
+            onPressed: _isLoading ? null : _uploadRecipe,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
-            child: const Text("등록 완료", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+            // [수정] 로딩 중일 때는 동그라미 로딩바 보여주기
+            child: _isLoading 
+              ? const SizedBox(
+                  height: 20, 
+                  width: 20, 
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                )
+              : const Text("등록 완료", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
           ),
         ),
       ),
     );
   }
 
-  // 웹과 모바일 미리보기를 자동으로 처리해주는 함수야
   DecorationImage? _buildPreviewImage() {
     if (kIsWeb && _webImagePath != null) {
       return DecorationImage(image: NetworkImage(_webImagePath!), fit: BoxFit.cover);
