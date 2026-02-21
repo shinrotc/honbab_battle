@@ -1,8 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; 
-import 'package:cloud_firestore/cloud_firestore.dart'; // [추가] 실시간 감시용
-import '../global_data.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import '../global_data.dart'; // 👈 8번 라인: 아래 Row에서 categories를 쓰므로 이제 정상!
 import '../models/recipe_model.dart';
 import 'detail_screen.dart';
 import 'event_screen.dart'; 
@@ -17,17 +15,19 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _selectedCategory = "전체";
+  String _sortBy = "인기순"; 
 
-  // 🔥 [핵심 추가] 파이어베이스에서 레시피 목록을 실시간으로 가져오는 스트림
+  // 🔥 실시간 정렬 쿼리
   Stream<List<RecipeModel>> _getRecipeStream() {
-    Query query = FirebaseFirestore.instance.collection('recipes')
-        .orderBy('createdAt', descending: true); // 최신순 정렬
-
-    // 카테고리가 '전체'가 아닐 때만 필터링 걸기
+    Query query = FirebaseFirestore.instance.collection('recipes');
+    if (_sortBy == "인기순") {
+      query = query.orderBy('likesCount', descending: true);
+    } else {
+      query = query.orderBy('createdAt', descending: true);
+    }
     if (_selectedCategory != "전체") {
       query = query.where('category', isEqualTo: _selectedCategory);
     }
-
     return query.snapshots().map((snapshot) {
       return snapshot.docs.map((doc) {
         return RecipeModel.fromMap(doc.id, doc.data() as Map<String, dynamic>);
@@ -58,9 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               IconButton(
                 icon: const Icon(Icons.notifications_none, color: Colors.black, size: 26),
-                onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationScreen()));
-                },
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationScreen())),
               ),
               Positioned(
                 right: 12, top: 12,
@@ -71,24 +69,33 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 10),
         ],
       ),
-
       body: SingleChildScrollView(
         child: Column(
           children: [
             _buildBanner(context),
-            
-            // 카테고리 가로 스크롤 (디자인 유지)
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
+                // ✅ 여기서 categories를 사용하여 global_data.dart 임포트 경고 해결!
                 children: categories.map((c) => _buildCategoryButton(c)).toList(),
               ),
             ),
-            
-            // 🔥 [핵심 수정] 실시간 데이터 빌더 적용
+            const SizedBox(height: 15),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  _buildSortTab("인기순"),
+                  const SizedBox(width: 15),
+                  _buildSortTab("최신순"),
+                  const Spacer(),
+                  const Icon(Icons.tune, size: 16, color: Colors.grey),
+                ],
+              ),
+            ),
             StreamBuilder<List<RecipeModel>>(
-              stream: _getRecipeStream(), // 우리가 만든 실시간 파이프 연결
+              stream: _getRecipeStream(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Padding(
@@ -96,13 +103,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Center(child: CircularProgressIndicator(color: Colors.orange)),
                   );
                 }
-
-                if (snapshot.hasError) {
-                  return Center(child: Text("데이터를 불러오지 못했습니다: ${snapshot.error}"));
-                }
-
                 final recipes = snapshot.data ?? [];
-
                 return Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -110,64 +111,30 @@ class _HomeScreenState extends State<HomeScreen> {
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Text(
-                            "$_selectedCategory 레시피 (${recipes.length})", 
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
-                          ),
+                          padding: const EdgeInsets.only(bottom: 15, left: 4),
+                          child: Text(_sortBy == "인기순" ? "🏆 지금 가장 핫한 요리" : "🆕 방금 올라온 요리", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                         ),
                       ),
-
-                      if (recipes.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 40),
-                          child: Text("아직 등록된 레시피가 없어요. 👨‍🍳", style: TextStyle(color: Colors.grey)),
-                        )
-                      else
-                        ...recipes.map((recipe) => _buildFeedCard(context, recipe: recipe)),
+                      ...recipes.asMap().entries.map((entry) => _buildFeedCard(context, recipe: entry.value, rank: _sortBy == "인기순" ? entry.key + 1 : 0)),
                     ],
                   ),
                 );
-              }
+              },
             ),
-            const SizedBox(height: 20),
           ],
         ),
       ),
     );
   }
 
-  // --- 부품 위젯들 (승규의 디자인 원본 100% 유지) ---
-
-  Widget _buildBanner(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
-      width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Colors.orange, Colors.red], begin: Alignment.centerLeft, end: Alignment.centerRight),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.orange.withValues(alpha:0.3), blurRadius: 10, offset: const Offset(0, 5))],
-      ),
+  Widget _buildSortTab(String title) {
+    bool isSelected = _sortBy == title;
+    return GestureDetector(
+      onTap: () => setState(() { _sortBy = title; }),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: Colors.black.withValues(alpha:0.2), borderRadius: BorderRadius.circular(10)),
-            child: const Text("🔥 D-2 남음", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-          ),
-          const SizedBox(height: 10),
-          const Text("편의점 5,000원의\n행복을 찾아라!", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, height: 1.2)),
-          const SizedBox(height: 15),
-          GestureDetector(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EventScreen())),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-              child: const Text("참전하기 >", style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold)),
-            ),
-          ),
+          Text(title, style: TextStyle(fontSize: 14, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? Colors.black : Colors.grey[400])),
+          if (isSelected) Container(margin: const EdgeInsets.only(top: 4), width: 4, height: 4, decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle))
         ],
       ),
     );
@@ -190,16 +157,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFeedCard(BuildContext context, {required RecipeModel recipe}) {
+  Widget _buildFeedCard(BuildContext context, {required RecipeModel recipe, required int rank}) {
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => DetailScreen(recipeData: recipe))),
       child: Container(
         margin: const EdgeInsets.only(bottom: 24),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey[100]!),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.05), blurRadius: 15, offset: const Offset(0, 5))],
+          color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey[100]!),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 5))],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,22 +173,17 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                  child: _buildImageWidget(recipe.imagePath),
+                  child: recipe.imagePath != null ? Image.network(recipe.imagePath!, height: 220, width: double.infinity, fit: BoxFit.cover) : Container(height: 220, color: Colors.grey[200]),
                 ),
-                Positioned(
-                  bottom: 12, right: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(color: Colors.black.withValues(alpha:0.8), borderRadius: BorderRadius.circular(8)),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.local_offer, color: Colors.orange, size: 14),
-                        const SizedBox(width: 4),
-                        Text("${recipe.cost}원", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                      ],
+                if (rank == 1 && _sortBy == "인기순")
+                  Positioned(
+                    top: 15, left: 15,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(30)),
+                      child: const Row(children: [Icon(Icons.whatshot, color: Colors.white, size: 14), SizedBox(width: 4), Text("BEST 1", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))]),
                     ),
                   ),
-                ),
               ],
             ),
             Padding(
@@ -233,11 +193,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(recipe.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  Text(recipe.promo, style: TextStyle(color: Colors.grey[600], fontSize: 14, height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Text(recipe.promo, style: TextStyle(color: Colors.grey[600], fontSize: 14), maxLines: 2, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      const CircleAvatar(radius: 10, backgroundColor: Colors.grey, child: Icon(Icons.person, size: 12, color: Colors.white)),
+                      const Icon(Icons.person_outline, size: 16, color: Colors.grey),
                       const SizedBox(width: 6),
                       Text("자취9단승규", style: TextStyle(color: Colors.grey[500], fontSize: 13, fontWeight: FontWeight.bold)),
                       const Spacer(),
@@ -255,12 +215,26 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildImageWidget(String? path) {
-    if (path == null) return Container(height: 220, color: Colors.grey[200]);
-    if (path.startsWith('http')) return Image.network(path, height: 220, width: double.infinity, fit: BoxFit.cover);
-    
-    return kIsWeb 
-      ? Image.network(path, height: 220, width: double.infinity, fit: BoxFit.cover)
-      : Image.file(File(path), height: 220, width: double.infinity, fit: BoxFit.cover);
+  Widget _buildBanner(BuildContext context) {
+    return GestureDetector(
+      // ✅ 여기서 EventScreen을 사용하여 임포트 경고 해결!
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EventScreen())),
+      child: Container(
+        margin: const EdgeInsets.all(16), padding: const EdgeInsets.all(20), width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [Colors.orange, Colors.red], begin: Alignment.centerLeft, end: Alignment.centerRight),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.orange.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 5))],
+        ),
+        child: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("🔥 실시간 랭킹전", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+            SizedBox(height: 10),
+            Text("지금 가장 핫한\n최고의 혼밥 조합은?\n참전하기 >", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, height: 1.2)),
+          ],
+        ),
+      ),
+    );
   }
 }
