@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'detail_screen.dart'; // 상세 페이지 연결
+import 'search_result_screen.dart'; // 👈 검색 결과 화면 연결 확인!
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -9,16 +9,25 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
-  // [1] 예산 슬라이더 변수
+  // [1] 검색어 제어를 위한 컨트롤러
+  final TextEditingController _searchController = TextEditingController();
+
+  // [2] 예산 슬라이더 변수
   double _budget = 5000;
 
-  // [2] 선택된 재료들을 저장할 리스트
+  // [3] 선택된 재료들을 저장할 리스트
   List<String> selectedIngredients = ["라면", "계란"];
 
-  // [3] 전체 재료 목록 (여기에 사용자가 추가한 것도 들어갈 거야!)
+  // [4] 전체 재료 목록
   final List<String> allIngredients = [
     "라면", "계란", "참치캔", "스팸/햄", "김치", "치즈", "냉동만두", "밥", "대파", "양파"
   ];
+
+  @override
+  void dispose() {
+    _searchController.dispose(); // 메모리 해제
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,8 +45,9 @@ class _SearchScreenState extends State<SearchScreen> {
             color: Colors.grey[100],
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const TextField(
-            decoration: InputDecoration(
+          child: TextField(
+            controller: _searchController, // 👈 컨트롤러 연결
+            decoration: const InputDecoration(
               hintText: "재료나 요리명을 입력하세요",
               hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
               prefixIcon: Icon(Icons.search, color: Colors.grey),
@@ -50,8 +60,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
       // 본문
       body: SingleChildScrollView(
-        // 키보드가 올라와도 가려지지 않게 bottom padding 넉넉히
-        padding: const EdgeInsets.only(bottom: 100, left: 20, right: 20, top: 20),
+        padding: const EdgeInsets.only(bottom: 120, left: 20, right: 20, top: 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -115,11 +124,8 @@ class _SearchScreenState extends State<SearchScreen> {
               spacing: 8, 
               runSpacing: 8, 
               children: [
-                // 전체 재료 리스트 보여주기
                 for (String ingredient in allIngredients)
                   _buildChip(ingredient),
-                  
-                // [기능 추가됨] 직접 입력 버튼
                 _buildPlusBtn(),
               ],
             ),
@@ -137,7 +143,7 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
       ),
 
-      // 하단 검색 버튼
+      // 🔥 [결정적 수정] 하단 검색 버튼 로직
       bottomSheet: Container(
         color: Colors.white,
         padding: const EdgeInsets.all(20),
@@ -146,7 +152,17 @@ class _SearchScreenState extends State<SearchScreen> {
           height: 55,
           child: ElevatedButton(
             onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const DetailScreen()));
+              // ✅ 이제 상세페이지가 아니라 '검색 결과 화면'으로 모든 데이터를 들고 이동합니다!
+              Navigator.push(
+                context, 
+                MaterialPageRoute(
+                  builder: (context) => SearchResultScreen(
+                    budget: _budget.toInt(),
+                    ingredients: selectedIngredients,
+                    searchQuery: _searchController.text,
+                  ),
+                ),
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.black,
@@ -158,7 +174,7 @@ class _SearchScreenState extends State<SearchScreen> {
               children: [
                 const Icon(Icons.search, color: Colors.white),
                 const SizedBox(width: 8),
-                Text("맞춤 레시피 찾기 (${selectedIngredients.length * 15 + 2}건)", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                Text("맞춤 레시피 찾기", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
               ],
             ),
           ),
@@ -170,7 +186,6 @@ class _SearchScreenState extends State<SearchScreen> {
   // 재료 칩 위젯
   Widget _buildChip(String text) {
     bool isSelected = selectedIngredients.contains(text);
-
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -192,33 +207,22 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isSelected) ...[
-              const Icon(Icons.check, size: 14, color: Colors.orange),
-              const SizedBox(width: 4),
-            ],
-            Text(
-              text,
-              style: TextStyle(
-                color: isSelected ? Colors.orange : Colors.grey[600],
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
-            ),
-          ],
+        child: Text(
+          text,
+          style: TextStyle(
+            color: isSelected ? Colors.orange : Colors.grey[600],
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
         ),
       ),
     );
   }
   
-  // [수정됨] 직접 입력 버튼 (누르면 팝업 뜸!)
+  // 직접 입력 버튼
   Widget _buildPlusBtn() {
     return GestureDetector(
-      onTap: () {
-        _showAddIngredientDialog(); // 팝업창 호출
-      },
+      onTap: () => _showAddIngredientDialog(),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
@@ -231,10 +235,9 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  // [새로 추가된 함수] 재료 추가 팝업창
+  // 재료 추가 팝업
   void _showAddIngredientDialog() {
     TextEditingController textController = TextEditingController();
-
     showDialog(
       context: context,
       builder: (context) {
@@ -243,34 +246,23 @@ class _SearchScreenState extends State<SearchScreen> {
           title: const Text("재료 추가하기", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           content: TextField(
             controller: textController,
-            autofocus: true, // 팝업 뜨자마자 키보드 올라오게
-            decoration: InputDecoration(
-              hintText: "예: 삼겹살, 우유",
-              hintStyle: TextStyle(color: Colors.grey[400]),
-              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey[300]!)),
-              focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.orange)),
-            ),
+            autofocus: true,
+            decoration: const InputDecoration(hintText: "예: 삼겹살"),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("취소", style: TextStyle(color: Colors.grey)),
-            ),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text("취소")),
             TextButton(
               onPressed: () {
                 if (textController.text.isNotEmpty) {
                   setState(() {
-                    String newIngredient = textController.text;
-                    // 전체 리스트에 없으면 추가
-                    if (!allIngredients.contains(newIngredient)) {
-                      allIngredients.add(newIngredient);
+                    if (!allIngredients.contains(textController.text)) {
+                      allIngredients.add(textController.text);
                     }
-                    // 자동으로 선택된 상태로 만들기!
-                    if (!selectedIngredients.contains(newIngredient)) {
-                      selectedIngredients.add(newIngredient);
+                    if (!selectedIngredients.contains(textController.text)) {
+                      selectedIngredients.add(textController.text);
                     }
                   });
-                  Navigator.pop(context); // 팝업 닫기
+                  Navigator.pop(context);
                 }
               },
               child: const Text("추가", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
@@ -282,29 +274,17 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildRankItem(int rank, String text, {required bool isNew}) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (context) => const DetailScreen()));
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        margin: const EdgeInsets.only(bottom: 8),
-        decoration: BoxDecoration(
-          color: Colors.grey[50],
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 30,
-              child: Text("$rank", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: rank == 1 ? Colors.orange : Colors.black)),
-            ),
-            Text(text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-            const Spacer(),
-            if (isNew)
-              const Text("NEW", style: TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold)),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(8)),
+      child: Row(
+        children: [
+          SizedBox(width: 30, child: Text("$rank", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: rank == 1 ? Colors.orange : Colors.black))),
+          Text(text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          const Spacer(),
+          if (isNew) const Text("NEW", style: TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold)),
+        ],
       ),
     );
   }
