@@ -2,16 +2,17 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 // 요리 데이터를 담는 바구니의 표준 설계도 (서버 연동형)
 class RecipeModel {
-  final String? id;          // 서버에서 부여하는 고유 번호 (수정/삭제 시 필요)
-  final String title;       // 요리 이름
-  final String promo;       // 매력적인 한 줄 홍보 문구
-  final String category;    // 카테고리 (혼밥, 다이어트 등)
-  final String recipe;      // 조리법 텍스트
-  final int cost;           // 예상 비용
+  final String? id;           // 서버에서 부여하는 고유 번호 (수정/삭제 시 필요)
+  final String title;        // 요리 이름
+  final String promo;        // 매력적인 한 줄 홍보 문구
+  final String category;     // 카테고리 (혼밥, 다이어트 등)
+  final String recipe;       // 조리법 텍스트
+  final int cost;            // 예상 비용
   final List<String> ingredients; // 재료 리스트
-  final String? imagePath;  // 사진 경로 (URL)
-  final String? authorId;   // 작성자 고유 ID (플랫폼 관리를 위해 추가)
-  final int likesCount;     // 좋아요/투표 수 (랭킹 시스템용)
+  final String? imagePath;   // 사진 경로 (URL)
+  final String? authorId;    // 작성자 고유 ID (플랫폼 관리를 위해 추가)
+  final int likesCount;      // 좋아요/투표 수 (랭킹 시스템용)
+  final List<String> likedUsers; // 🚀 [추가] 좋아요를 누른 유저 ID 리스트 (중복 방지용)
   final DateTime? createdAt; // 작성 시간 (최신순 정렬용)
 
   RecipeModel({
@@ -24,7 +25,8 @@ class RecipeModel {
     required this.ingredients,
     this.imagePath,
     this.authorId,
-    this.likesCount = 0,    // 처음 만들 때는 기본 0개
+    this.likesCount = 0,     // 처음 만들 때는 기본 0개
+    this.likedUsers = const [], // 🚀 [추가] 기본값은 빈 리스트
     this.createdAt,
   });
 
@@ -40,7 +42,7 @@ class RecipeModel {
       'imagePath': imagePath,
       'authorId': authorId,
       'likesCount': likesCount,
-      // 서버에 저장되는 순간의 시간을 기록해!
+      'likedUsers': likedUsers, // 🚀 [추가] 장부에 같이 적어줘!
       'createdAt': createdAt ?? FieldValue.serverTimestamp(), 
     };
   }
@@ -58,7 +60,8 @@ class RecipeModel {
       imagePath: map['imagePath'],
       authorId: map['authorId'],
       likesCount: map['likesCount'] ?? 0,
-      // 서버의 Timestamp를 앱의 DateTime으로 변환해줘
+      // 🚀 [추가] 서버 장부에서 리스트를 읽어와! (없으면 빈 리스트로)
+      likedUsers: List<String>.from(map['likedUsers'] ?? []), 
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
     );
   }

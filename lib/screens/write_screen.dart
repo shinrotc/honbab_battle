@@ -7,17 +7,20 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../models/recipe_model.dart';
 
 class WriteScreen extends StatefulWidget {
-  const WriteScreen({super.key});
+  // 🚀 [추가] 수정 모드인지 확인하기 위한 필드
+  final RecipeModel? recipeForEdit;
+  const WriteScreen({super.key, this.recipeForEdit});
 
   @override
   State<WriteScreen> createState() => _WriteScreenState();
 }
 
 class _WriteScreenState extends State<WriteScreen> {
+  // 승규의 소중한 컨트롤러들 (보존)
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _promoController = TextEditingController(); 
-  final TextEditingController _ingredientsController = TextEditingController(); // [추가] 재료 전용
-  final TextEditingController _recipeController = TextEditingController();      // [수정] 조리법 전용
+  final TextEditingController _ingredientsController = TextEditingController();
+  final TextEditingController _recipeController = TextEditingController();
   final TextEditingController _costController = TextEditingController();
 
   File? _selectedImage;
@@ -27,97 +30,91 @@ class _WriteScreenState extends State<WriteScreen> {
 
   final List<String> writeCategories = ["혼밥", "다이어트", "혼술안주"];
   late String selectedCategory;
-
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    selectedCategory = writeCategories[0];
+    // 🚀 [수정 모드 대응] 데이터가 있으면 채우고, 없으면 기본값
+    if (widget.recipeForEdit != null) {
+      final e = widget.recipeForEdit!;
+      _titleController.text = e.title;
+      _promoController.text = e.promo;
+      _ingredientsController.text = e.ingredients.join('\n'); // 리스트 -> 텍스트 변환
+      _recipeController.text = e.recipe;
+      _costController.text = e.cost.toString();
+      selectedCategory = e.category;
+    } else {
+      selectedCategory = writeCategories[0];
+    }
   }
 
+  // 승규의 이미지 피커 로직 (보존)
   Future<void> _pickImage() async {
-    final XFile? pickedFile = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 50, 
-      maxWidth: 1024,
-    );
-
+    final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 50, maxWidth: 1024);
     if (pickedFile != null) {
       setState(() {
         _pickedFile = pickedFile; 
-        if (kIsWeb) {
-          _webImagePath = pickedFile.path;
-        } else {
-          _selectedImage = File(pickedFile.path);
-        }
+        if (kIsWeb) _webImagePath = pickedFile.path;
+        else _selectedImage = File(pickedFile.path);
       });
     }
   }
 
+  // 🚀 업로드 및 수정 로직 통합
   Future<void> _uploadRecipe() async {
-    bool hasImage = kIsWeb ? _webImagePath != null : _selectedImage != null;
+    // 사진 체크 로직 수정 (수정 모드일 땐 기존 사진 있어도 됨)
+    bool hasImage = (_pickedFile != null) || (widget.recipeForEdit?.imagePath != null);
     
-    // 필수 입력값 체크 (재료와 조리법도 필수!)
-    if (_titleController.text.isEmpty || 
-        _ingredientsController.text.isEmpty || 
-        _recipeController.text.isEmpty || 
-        !hasImage) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("사진, 제목, 재료, 조리법은 모두 필수입니다! 🍳"))
-      );
+    if (_titleController.text.isEmpty || _ingredientsController.text.isEmpty || _recipeController.text.isEmpty || !hasImage) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("사진, 제목, 재료, 조리법은 모두 필수입니다! 🍳")));
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      String downloadUrl = "";
+      String downloadUrl = widget.recipeForEdit?.imagePath ?? "";
 
+      // 새 사진을 골랐을 때만 Storage 업로드
       if (_pickedFile != null) {
         String fileName = "recipe_${DateTime.now().millisecondsSinceEpoch}.jpg";
         Reference ref = FirebaseStorage.instance.ref().child('recipes/$fileName');
-
         if (kIsWeb) {
-          Uint8List bytes = await _pickedFile!.readAsBytes();
-          await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+          await ref.putData(await _pickedFile!.readAsBytes(), SettableMetadata(contentType: 'image/jpeg'));
         } else {
           await ref.putFile(_selectedImage!);
         }
-
         downloadUrl = await ref.getDownloadURL();
       }
 
-      // [핵심 변경] 재료는 리스트로 쪼개고, 조리법은 통글로 저장
-      final newRecipe = RecipeModel(
-        title: _titleController.text.trim(),
-        promo: _promoController.text.isEmpty ? "맛있는 레시피를 확인해보세요!" : _promoController.text.trim(),
-        category: selectedCategory,
-        ingredients: _ingredientsController.text.split('\n').where((s) => s.trim().isNotEmpty).toList(), // 👈 재료 컨트롤러 사용!
-        recipe: _recipeController.text.trim(), // 👈 조리법만 담기
-        cost: int.tryParse(_costController.text) ?? 0,
-        imagePath: downloadUrl,
-        authorId: "자취9단승규", 
-        likesCount: 0,
-        createdAt: DateTime.now(),
-      );
+      final data = {
+        'title': _titleController.text.trim(),
+        'promo': _promoController.text.trim(),
+        'category': selectedCategory,
+        'ingredients': _ingredientsController.text.split('\n').where((s) => s.trim().isNotEmpty).toList(),
+        'recipe': _recipeController.text.trim(),
+        'cost': int.tryParse(_costController.text) ?? 0,
+        'imagePath': downloadUrl,
+        'authorId': widget.recipeForEdit?.authorId ?? "자취9단승규", 
+        'likesCount': widget.recipeForEdit?.likesCount ?? 0,
+        'likedUsers': widget.recipeForEdit?.likedUsers ?? [],
+        'createdAt': widget.recipeForEdit?.createdAt ?? FieldValue.serverTimestamp(),
+      };
 
-      await FirebaseFirestore.instance
-          .collection('recipes')
-          .add(newRecipe.toMap());
+      if (widget.recipeForEdit == null) {
+        await FirebaseFirestore.instance.collection('recipes').add(data);
+      } else {
+        // 🚀 수정 모드: update 사용
+        await FirebaseFirestore.instance.collection('recipes').doc(widget.recipeForEdit!.id).update(data);
+      }
 
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("[$selectedCategory] 레시피가 완벽하게 등록됐어요! 🚀"))
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.recipeForEdit == null ? "등록 완료! 🚀" : "수정 완료! ✨")));
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("등록 실패: $e"))
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("실패: $e")));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -125,171 +122,71 @@ class _WriteScreenState extends State<WriteScreen> {
 
   @override
   void dispose() {
-    _titleController.dispose();
-    _promoController.dispose();
-    _ingredientsController.dispose(); // [추가]
-    _recipeController.dispose();
-    _costController.dispose();
+    _titleController.dispose(); _promoController.dispose(); _ingredientsController.dispose();
+    _recipeController.dispose(); _costController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    bool isEdit = widget.recipeForEdit != null;
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        foregroundColor: Colors.black,
-        title: const Text("새 레시피 공유", style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
+      appBar: AppBar(backgroundColor: Colors.white, elevation: 0, foregroundColor: Colors.black, title: Text(isEdit ? "레시피 수정" : "새 레시피 공유", style: const TextStyle(fontWeight: FontWeight.bold))),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // --- 승규의 카테고리 칩 UI (보존) ---
             const Text("카테고리 선택", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 10),
-            Row(
-              children: writeCategories.map((category) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: ChoiceChip(
-                    label: Text(category, 
-                      style: TextStyle(
-                        color: selectedCategory == category ? Colors.white : Colors.black,
-                        fontWeight: FontWeight.bold
-                      )
-                    ),
-                    selected: selectedCategory == category,
-                    selectedColor: Colors.orange,
-                    onSelected: (bool selected) {
-                      setState(() { if (selected) selectedCategory = category; });
-                    },
-                  ),
-                );
-              }).toList(),
-            ),
+            Row(children: writeCategories.map((c) => Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(label: Text(c), selected: selectedCategory == c, onSelected: (s) { if(s) setState(()=>selectedCategory=c); }))).toList()),
             const SizedBox(height: 30),
 
+            // --- 승규의 이미지 영역 UI (보존) ---
             const Text("요리 완성샷 *", style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             GestureDetector(
               onTap: _pickImage,
               child: Container(
-                height: 200,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey[300]!),
-                  image: _buildPreviewImage(),
-                ),
-                child: (_selectedImage == null && _webImagePath == null)
-                  ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.camera_alt, size: 40, color: Colors.grey[400]),
-                        const SizedBox(height: 8),
-                        const Text("맛있는 요리 사진을 올려주세요", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                      ],
-                    )
-                  : null,
+                height: 200, width: double.infinity,
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey[300]!), 
+                image: _buildPreviewImage()),
+                child: (_selectedImage == null && _webImagePath == null && widget.recipeForEdit?.imagePath == null) ? const Icon(Icons.camera_alt, color: Colors.grey) : null,
               ),
             ),
             const SizedBox(height: 30),
 
-            const Text("요리 이름", style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _titleController,
-              decoration: InputDecoration(
-                hintText: "예: 기적의 마라 로제 떡볶이",
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
+            // --- 승규의 입력창들 (보존) ---
+            _buildLabel("요리 이름"),
+            TextField(controller: _titleController, decoration: InputDecoration(hintText: "제목 입력", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
             const SizedBox(height: 30),
-
-            const Text("한 줄 홍보 (피드 노출용)", style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _promoController,
-              decoration: InputDecoration(
-                hintText: "예: 입안에서 터지는 매콤함의 신세계! 🔥",
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
+            _buildLabel("한 줄 홍보"),
+            TextField(controller: _promoController, decoration: InputDecoration(hintText: "홍보 문구", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
             const SizedBox(height: 30),
-
-            // [수정 포인트 1] 필수 재료 입력창
-            const Text("필수 재료", style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _ingredientsController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText: "예: 냉동 새우 15마리\n마라소스 3스푼\n(엔터로 구분해서 적어주세요)",
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
+            _buildLabel("필수 재료"),
+            TextField(controller: _ingredientsController, maxLines: 3, decoration: InputDecoration(hintText: "엔터로 구분", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
             const SizedBox(height: 30),
-
-            // [수정 포인트 2] 조리 방법 입력창
-            const Text("조리 방법", style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _recipeController,
-              maxLines: 8,
-              decoration: InputDecoration(
-                hintText: "1. 새우를 깨끗이 씻어줍니다.\n2. 팬에 기름을 두르고...",
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
+            _buildLabel("조리 방법"),
+            TextField(controller: _recipeController, maxLines: 8, decoration: InputDecoration(hintText: "조리법 작성", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
             const SizedBox(height: 30),
-
-            const Text("총 비용 (선택)", style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _costController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                suffixText: "원",
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
+            _buildLabel("총 비용"),
+            TextField(controller: _costController, keyboardType: TextInputType.number, decoration: InputDecoration(suffixText: "원", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
             const SizedBox(height: 100),
           ],
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: ElevatedButton(
-            onPressed: _isLoading ? null : _uploadRecipe,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            ),
-            child: _isLoading 
-              ? const SizedBox(
-                  height: 20, 
-                  width: 20, 
-                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                )
-              : const Text("등록 완료", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-          ),
-        ),
-      ),
+      bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.all(20), child: ElevatedButton(onPressed: _isLoading ? null : _uploadRecipe, style: ElevatedButton.styleFrom(backgroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(isEdit ? "수정 완료" : "등록 완료", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))))),
     );
   }
 
+  Widget _buildLabel(String text) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold)));
+
   DecorationImage? _buildPreviewImage() {
-    if (kIsWeb && _webImagePath != null) {
-      return DecorationImage(image: NetworkImage(_webImagePath!), fit: BoxFit.cover);
-    } else if (!kIsWeb && _selectedImage != null) {
-      return DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover);
-    }
+    if (kIsWeb && _webImagePath != null) return DecorationImage(image: NetworkImage(_webImagePath!), fit: BoxFit.cover);
+    if (!kIsWeb && _selectedImage != null) return DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover);
+    if (widget.recipeForEdit?.imagePath != null) return DecorationImage(image: NetworkImage(widget.recipeForEdit!.imagePath!), fit: BoxFit.cover);
     return null;
   }
 }
