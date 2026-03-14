@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-// [중요] 네 파일 이름이 'battle_write_screen.dart'니까 이걸로 가져와야 해!
+import 'package:cloud_firestore/cloud_firestore.dart'; // 🚀 [추가] 닉네임 가져오기 위해 필요
 import 'battle_write_screen.dart'; 
 
 class EventScreen extends StatelessWidget {
@@ -10,7 +10,6 @@ class EventScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       
-      // [1] 앱바: 뒤로가기 가능
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
@@ -18,26 +17,50 @@ class EventScreen extends StatelessWidget {
         title: const Text("진행 중인 배틀 🔥", style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       
-      // [2] 하단 '도전하기' 버튼 고정
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: ElevatedButton(
-            onPressed: () {
-              // [수정 완료] 버튼 누르면 'battle_write_screen.dart'로 이동! 🚀
-              // 혹시 여기서 빨간 줄 뜨면 'battle_write_screen.dart' 파일 안의 클래스 이름이
-              // 'BattleWriteScreen'인지 'BattleWritePage'인지 확인해봐!
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const BattleWriteScreen()),
-              );
+            // 🚀 [수정] async를 붙여서 데이터를 기다릴 수 있게 만듭니다.
+            onPressed: () async {
+              try {
+                // 1. 파이어베이스에서 최신 닉네임 가져오기
+                final doc = await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc('my_profile')
+                    .get();
+
+                String latestNick = "자취9단승규"; // 기본값
+                if (doc.exists && doc.data() != null) {
+                  latestNick = doc.data()!['nickname'] ?? "자취9단승규";
+                }
+
+                // 2. 닉네임을 들고 BattleWriteScreen으로 이동!
+                if (!context.mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => BattleWriteScreen(currentNickname: latestNick),
+                  ),
+                );
+              } catch (e) {
+                // 혹시 에러가 나면 기본값으로라도 이동하게 함
+                if (!context.mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const BattleWriteScreen(currentNickname: "자취9단승규"),
+                  ),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange[800], // 아주 진한 오렌지
+              backgroundColor: Colors.orange[800],
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
-            child: const Text("이 미션에 도전하기 (참전) ⚔️", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+            child: const Text("이 미션에 도전하기 (참전) ⚔️", 
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
           ),
         ),
       ),
@@ -46,7 +69,6 @@ class EventScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // [3] 메인 포스터 이미지
             Stack(
               children: [
                 Image.network(
@@ -59,7 +81,7 @@ class EventScreen extends StatelessWidget {
                   height: 250,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [Colors.black.withValues(alpha:0.8), Colors.transparent],
+                      colors: [Colors.black.withOpacity(0.8), Colors.transparent],
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
                     ),
@@ -85,7 +107,6 @@ class EventScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // [4] 미션 설명
                   const Text("📜 미션 내용", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),
                   Text(
@@ -95,7 +116,6 @@ class EventScreen extends StatelessWidget {
                   
                   const SizedBox(height: 30),
 
-                  // [5] 우승 상품
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -120,7 +140,6 @@ class EventScreen extends StatelessWidget {
 
                   const SizedBox(height: 40),
 
-                  // [6] 현재 참가자 리스트
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -130,7 +149,6 @@ class EventScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 15),
                   
-                  // 참가작 미리보기 (가로 스크롤)
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(

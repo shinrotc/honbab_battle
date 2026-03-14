@@ -180,7 +180,7 @@ class _DetailScreenState extends State<DetailScreen> {
       child: OutlinedButton.icon(
         onPressed: onPressed, icon: Icon(icon, size: 14, color: color),
         label: Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
-        style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 10), side: BorderSide(color: color.withOpacity(0.3)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+        style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 10), side: BorderSide(color: color.withValues(alpha: 0.3)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
       ),
     );
   }
@@ -204,7 +204,7 @@ class _DetailScreenState extends State<DetailScreen> {
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Colors.grey[200]!)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))]),
+        decoration: BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Colors.grey[200]!)), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))]),
         child: Row(
           children: [
             Column(

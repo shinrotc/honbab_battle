@@ -28,7 +28,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _introController = TextEditingController(text: widget.currentIntro);
   }
 
-  // 🚀 [핵심 로직] 프로필 저장 + 작성한 모든 글 이름 변경 (Batch Update)
+  // 🚀 [핵심 로직] 프로필 저장 + 작성한 모든 글 이름 변경 (Batch Operation)
   Future<void> _saveProfile() async {
     setState(() => _isLoading = true);
 
@@ -40,12 +40,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       // 1. 파이어베이스 일괄 작업(Batch) 시작
       WriteBatch batch = FirebaseFirestore.instance.batch();
 
-      // 2. [내 정보 수정] users 컬렉션의 내 문서 업데이트 예약
-      DocumentReference userRef = FirebaseFirestore.instance.collection('users').doc('sg_user');
-      batch.update(userRef, {
+      // 2. [내 정보 수정] users 컬렉션의 내 문서 저장 (set 사용)
+      // 🚀 주소를 'my_profile'로 통일하고, 없으면 생성하도록 set을 사용합니다.
+      DocumentReference userRef = FirebaseFirestore.instance.collection('users').doc('my_profile');
+      batch.set(userRef, {
         'nickname': newNickname,
         'intro': newIntro,
-      });
+      }, SetOptions(merge: true)); // merge: true를 넣어야 기존 데이터와 합쳐집니다.
 
       // 3. [작성 글 수정] 내가 쓴 모든 레시피 찾아오기
       QuerySnapshot myRecipes = await FirebaseFirestore.instance
@@ -61,7 +62,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       // 4. 예약된 모든 작업(내 정보 + 모든 글 수정) 한꺼번에 실행!
       await batch.commit();
 
-      // 🚀 [노란 경고 해결] await 이후에는 화면이 살아있는지 꼭 확인해야 함
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
