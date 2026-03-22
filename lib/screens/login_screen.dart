@@ -43,10 +43,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     return Scaffold(
       body: Stack(
         children: [
-          // [1] 배경 이미지
+          // [1] 배경 이미지 (네트워크 -> 에셋으로 변경 완료! 🚀)
           Positioned.fill(
-            child: Image.network(
-              "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+            child: Image.asset(
+              "assets/images/login_bg2.jpg",
               fit: BoxFit.cover,
             ),
           ),
@@ -58,9 +58,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withValues(alpha:0.3),
+                    Colors.black.withOpacity(0.3),
                     Colors.transparent,
-                    Colors.black.withValues(alpha:0.9),
+                    Colors.black.withOpacity(0.9),
                   ],
                 ),
               ),
@@ -79,38 +79,32 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     opacity: _opacityAnimation,
                     child: Column(
                       children: [
-                        // [수정 1] 아이콘 박스
                         Container(
                           width: 80,
                           height: 80,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            // [색상 변경] 더 진한 오렌지색 (orange[800])
                             color: Colors.orange[800], 
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
-                              // 반투명 링 효과
                               BoxShadow(
-                                color: Colors.white.withValues(alpha:0.3),
+                                color: Colors.white.withOpacity(0.3),
                                 blurRadius: 0,
                                 spreadRadius: 6,
                                 offset: const Offset(0, 0),
                               ),
-                              // 그림자
                               BoxShadow(
-                                color: Colors.black.withValues(alpha:0.3),
+                                color: Colors.black.withOpacity(0.3),
                                 blurRadius: 20,
                                 offset: const Offset(0, 10),
                               ),
                             ],
                           ),
-                          // [크기 변경] 아이콘 사이즈 45 -> 52 (더 꽉 차게!)
                           child: const Icon(Icons.restaurant_rounded, color: Colors.white, size: 52),
                         ),
                         
                         const SizedBox(height: 24),
                         
-                        // "혼밥대전" 텍스트
                         RichText(
                           text: TextSpan(
                             style: const TextStyle(
@@ -123,7 +117,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             ),
                             children: [
                               const TextSpan(text: "혼밥"),
-                              // [색상 변경] 텍스트도 똑같이 진한 오렌지색으로 통일
                               TextSpan(text: "대전", style: TextStyle(color: Colors.orange[800])),
                             ],
                           ),
