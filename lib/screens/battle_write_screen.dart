@@ -7,7 +7,13 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../models/recipe_model.dart';
 
 class BattleWriteScreen extends StatefulWidget {
-  const BattleWriteScreen({super.key});
+  // 🚀 [추가] 외부에서 현재 사용자의 닉네임을 받아옵니다.
+  final String currentNickname;
+
+  const BattleWriteScreen({
+    super.key, 
+    required this.currentNickname, // 이제 닉네임 전달은 필수!
+  });
 
   @override
   State<BattleWriteScreen> createState() => _BattleWriteScreenState();
@@ -18,7 +24,6 @@ class _BattleWriteScreenState extends State<BattleWriteScreen> {
   final TextEditingController _priceController = TextEditingController();
   final TextEditingController _recipeController = TextEditingController();
   
-  // 🚀 [개선] 변하지 않는 객체는 final로 선언합니다.
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
 
@@ -68,13 +73,14 @@ class _BattleWriteScreenState extends State<BattleWriteScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 🚀 사진 업로드
+      // 1. 사진 업로드
       String cookingUrl = await _uploadToStorage(_pickedCooking!, "cooking");
       String receiptUrl = "";
       if (_pickedReceipt != null) {
         receiptUrl = await _uploadToStorage(_pickedReceipt!, "receipt");
       }
 
+      // 2. 모델 생성
       final newBattleRecipe = RecipeModel(
         title: "[참전] ${_titleController.text.trim()}",
         promo: "5,000원의 행복! 제 필살기 레시피를 공개합니다. 🔥",
@@ -83,18 +89,19 @@ class _BattleWriteScreenState extends State<BattleWriteScreen> {
         recipe: _recipeController.text.trim(),
         cost: cost,
         imagePath: cookingUrl, 
-        authorId: "자취9단승규", 
+        // 🚀 [수정] 하드코딩 대신 전달받은 최신 닉네임을 사용합니다!
+        authorId: widget.currentNickname, 
         likesCount: 0,
-        likedUsers: const [], // 🚀 모델 구조에 맞춰 추가
+        likedUsers: const [],
         createdAt: DateTime.now(),
       );
 
       Map<String, dynamic> data = newBattleRecipe.toMap();
       data['receiptImagePath'] = receiptUrl; 
 
+      // 3. Firestore 저장
       await FirebaseFirestore.instance.collection('recipes').add(data);
 
-      // 🛡️ [중요] await 이후 context를 쓸 때는 mounted 체크가 필수! (async_gaps 해결)
       if (!mounted) return;
 
       Navigator.pop(context);
@@ -188,6 +195,7 @@ class _BattleWriteScreenState extends State<BattleWriteScreen> {
     );
   }
 
+  // --- 위젯 헬퍼 함수들은 승규가 짠 것 그대로 유지 ---
   Widget _buildPhotoBox(String text, bool isCooking) {
     return Expanded(
       child: GestureDetector(
@@ -261,7 +269,7 @@ class _BattleWriteScreenState extends State<BattleWriteScreen> {
       child: const Row(
         children: [
           Icon(Icons.warning_amber_rounded, color: Colors.red), 
-          SizedBox(width: 10), 
+          const SizedBox(width: 10), 
           Expanded(
             child: Text(
               "총 재료비가 5,000원을 넘으면 자동으로 탈락 처리됩니다!", 
