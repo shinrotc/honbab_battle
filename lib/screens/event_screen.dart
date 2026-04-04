@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // 🚀 [추가] 닉네임 가져오기 위해 필요
+import 'package:cloud_firestore/cloud_firestore.dart'; 
 import 'battle_write_screen.dart'; 
 
 class EventScreen extends StatelessWidget {
@@ -21,7 +21,6 @@ class EventScreen extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: ElevatedButton(
-            // 🚀 [수정] async를 붙여서 데이터를 기다릴 수 있게 만듭니다.
             onPressed: () async {
               try {
                 // 1. 파이어베이스에서 최신 닉네임 가져오기
@@ -35,12 +34,15 @@ class EventScreen extends StatelessWidget {
                   latestNick = doc.data()!['nickname'] ?? "자취9단승규";
                 }
 
-                // 2. 닉네임을 들고 BattleWriteScreen으로 이동!
+                // 🚀 [핵심 수정] BattleWriteScreen을 부를 때 닉네임뿐만 아니라 UID('my_profile')도 함께 던져줍니다!
                 if (!context.mounted) return;
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => BattleWriteScreen(currentNickname: latestNick),
+                    builder: (context) => BattleWriteScreen(
+                      currentNickname: latestNick,
+                      currentUid: 'my_profile', // 👈 이 줄이 추가되어야 에러가 안 나요!
+                    ),
                   ),
                 );
               } catch (e) {
@@ -49,7 +51,10 @@ class EventScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const BattleWriteScreen(currentNickname: "자취9단승규"),
+                    builder: (context) => const BattleWriteScreen(
+                      currentNickname: "자취9단승규",
+                      currentUid: 'my_profile', // 👈 여기도 똑같이 추가!
+                    ),
                   ),
                 );
               }

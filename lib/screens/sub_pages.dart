@@ -2,13 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
 import '../models/recipe_model.dart'; 
 import 'detail_screen.dart';
-import 'write_screen.dart'; // 🚀 꼭 추가!
+import 'write_screen.dart'; 
 
 class UniversalListScreen extends StatelessWidget {
   final String title; 
   final String? filterAuthorId; 
+  // 🚀 [추가] 수정 화면으로 전달할 닉네임을 받습니다.
+  final String? currentNickname; 
 
-  const UniversalListScreen({super.key, required this.title, this.filterAuthorId});
+  const UniversalListScreen({
+    super.key, 
+    required this.title, 
+    this.filterAuthorId,
+    this.currentNickname, // 👈 생성자에 추가
+  });
 
   // 삭제 로직 (기존 유지)
   Future<void> _deleteRecipe(BuildContext context, String docId, String recipeTitle) async {
@@ -64,10 +71,11 @@ class UniversalListScreen extends StatelessWidget {
 
   Stream<QuerySnapshot> _getFilteredStream() {
     final collection = FirebaseFirestore.instance.collection('recipes');
+    // 🚀 [수정] 기본값인 '자취9단승규' 대신 'my_profile'(UID)을 기준으로 검색하게 바꿨어!
     if (title == "내가 쓴 레시피") {
-      return collection.where('authorId', isEqualTo: filterAuthorId ?? "자취9단승규").snapshots();
+      return collection.where('authorId', isEqualTo: filterAuthorId ?? "my_profile").snapshots();
     } else if (title == "찜한 레시피") {
-      return collection.where('likedUsers', arrayContains: filterAuthorId ?? "자취9단승규").snapshots();
+      return collection.where('likedUsers', arrayContains: filterAuthorId ?? "my_profile").snapshots();
     } else {
       return collection.snapshots();
     }
@@ -111,8 +119,17 @@ class UniversalListScreen extends StatelessWidget {
                 icon: const Icon(Icons.more_vert, color: Colors.grey),
                 onSelected: (value) {
                   if (value == 'edit') {
-                    // 🚀 [수정] 기존 데이터를 들고 이동!
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => WriteScreen(recipeForEdit: recipe)));
+                    // 🚀 [핵심 수정] 수정 화면으로 갈 때도 닉네임과 UID를 챙겨서 보냅니다!
+                    Navigator.push(
+                      context, 
+                      MaterialPageRoute(
+                        builder: (context) => WriteScreen(
+                          recipeForEdit: recipe,
+                          currentNickname: currentNickname ?? "자취9단승규",
+                          currentUid: filterAuthorId ?? "my_profile", // 👈 지문(UID) 추가!
+                        )
+                      )
+                    );
                   } else if (value == 'delete') {
                     _deleteRecipe(context, recipe.id!, recipe.title);
                   }
@@ -128,7 +145,7 @@ class UniversalListScreen extends StatelessWidget {
   }
 }
 
-// 고객센터 (승규가 말한 깔끔한 UI 보존)
+// 고객센터 (기존 유지)
 class CustomerServiceScreen extends StatelessWidget {
   const CustomerServiceScreen({super.key});
   @override

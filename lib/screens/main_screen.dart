@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // 🚀 [추가] DB 접근을 위해 필요!
+import 'package:cloud_firestore/cloud_firestore.dart'; 
 import 'home_screen.dart';
 import 'ranking_screen.dart';
 import 'search_screen.dart';
@@ -41,37 +41,43 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  // 🚀 [추가] 글쓰기 화면으로 가기 전 최신 닉네임을 가져오는 함수
+  // 🚀 [수정] 글쓰기 화면으로 갈 때 닉네임과 UID를 모두 챙겨갑니다.
   Future<void> _navigateToWrite() async {
     try {
-      // 1. 프로필 수정에서 저장했던 'my_profile' 문서를 읽어옵니다.
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc('my_profile')
           .get();
 
-      // 2. 저장된 닉네임이 있으면 가져오고, 없으면 기본값을 씁니다.
       String latestNick = "자취9단승규";
       if (doc.exists && doc.data() != null) {
         latestNick = doc.data()!['nickname'] ?? "자취9단승규";
       }
 
-      // 3. 최신 닉네임을 들고 글쓰기 화면으로 이동!
       if (!mounted) return;
+      
+      // ✅ [핵심 수정] currentUid를 'my_profile'로 함께 전달합니다.
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => WriteScreen(currentNickname: latestNick),
+          builder: (context) => WriteScreen(
+            currentNickname: latestNick,
+            currentUid: 'my_profile', // 👈 이 줄이 추가되었습니다!
+          ),
         ),
       );
     } catch (e) {
-      print("닉네임 가져오기 실패: $e");
-      // 에러가 나도 글은 쓸 수 있게 기본값으로 이동
+      debugPrint("닉네임 가져오기 실패: $e");
       if (!mounted) return;
+      
+      // ✅ [핵심 수정] 에러 시에도 UID를 함께 전달합니다. (const 제거)
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const WriteScreen(currentNickname: "자취9단승규"),
+          builder: (context) => WriteScreen(
+            currentNickname: "자취9단승규",
+            currentUid: 'my_profile', // 👈 이 줄이 추가되었습니다!
+          ),
         ),
       );
     }
@@ -91,12 +97,10 @@ class _MainScreenState extends State<MainScreen> {
         children: _widgetOptions,
       ),
 
-      // 2. 가운데 둥둥 떠 있는 글쓰기 버튼
       floatingActionButton: SizedBox(
         width: 65,
         height: 65,
         child: FloatingActionButton(
-          // 🚀 [수정] 바로 이동하는 대신, 닉네임을 챙겨서 이동하는 함수를 실행합니다.
           onPressed: _navigateToWrite, 
           backgroundColor: const Color(0xFF111827),
           elevation: 5,
