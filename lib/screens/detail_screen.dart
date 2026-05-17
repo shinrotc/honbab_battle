@@ -16,8 +16,8 @@ class DetailScreen extends StatefulWidget {
 }
 
 class _DetailScreenState extends State<DetailScreen> {
-  // 🔥 현재 유저 (나중에 로그인 연동 시 수정)
-  final String currentUserId = "자취9단승규";
+  // 🔥 현재 유저 (나중에 로그인 연동 시 카카오/구글 UID로 교체될 예정)
+  final String currentUserId = "my_profile";
 
   RecipeModel get data => widget.recipeData ?? RecipeModel(
     title: "불닭+치즈+소시지 조합",
@@ -29,7 +29,7 @@ class _DetailScreenState extends State<DetailScreen> {
     imagePath: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800",
   );
 
-  // 🚀 [기능 수정] 투표하기 -> 찜하기(토글) 로직
+  // 🚀 투표하기 -> 찜하기(토글) 로직
   Future<void> _toggleLike(bool isAlreadyLiked) async {
     if (widget.recipeData == null || widget.recipeData!.id == null) return;
     final docRef = FirebaseFirestore.instance.collection('recipes').doc(widget.recipeData!.id);
@@ -61,7 +61,7 @@ class _DetailScreenState extends State<DetailScreen> {
     ));
   }
 
-  // 🛒 쇼핑몰/지도 연결 함수들 (디자인 유지의 핵심!)
+  // 🛒 쇼핑몰/지도 연결 함수들
   Future<void> _launchShopping(String query) async {
     final String encodedQuery = Uri.encodeComponent(query);
     final Uri uri = Uri.parse("https://www.kurly.com/search?words=$encodedQuery");
@@ -115,7 +115,8 @@ class _DetailScreenState extends State<DetailScreen> {
                       const SizedBox(height: 4),
                       Text(data.promo, style: TextStyle(fontSize: 14, color: Colors.orange[700], fontWeight: FontWeight.w500)),
                       const SizedBox(height: 8),
-                      _buildAuthorRow(currentLikes, isLiked), // 하트 상태 반영
+                      // 🚀 [수정 완료] 하드코딩된 작성자 텍스트를 실시간 연동 위젯으로 교체!
+                      _buildAuthorRow(currentLikes, isLiked, data.authorId), 
                       const SizedBox(height: 30),
                       const Text("🛒 준비물", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 15),
@@ -185,7 +186,36 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  Widget _buildAuthorRow(int likes, bool isLiked) => Row(children: [const CircleAvatar(radius: 12, backgroundColor: Colors.grey), const SizedBox(width: 8), Text("자취9단승규", style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold)), const Spacer(), Icon(isLiked ? Icons.favorite : Icons.favorite_border, color: Colors.red), Text(" $likes", style: const TextStyle(fontWeight: FontWeight.bold))]);
+  // 🚀 [구조 업그레이드] 실시간 닉네임 연동 위젯 추가
+  Widget _buildDynamicAuthorName(String? authorId) {
+    if (authorId == null || authorId.isEmpty) {
+      return Text("무명요리사", style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold));
+    }
+    if (authorId == 'my_profile') {
+      return StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance.collection('users').doc(authorId).snapshots(),
+        builder: (context, snapshot) {
+          String displayName = "로딩중...";
+          if (snapshot.hasData && snapshot.data!.exists) {
+            final userData = snapshot.data!.data() as Map<String, dynamic>;
+            displayName = userData['nickname'] ?? "무명요리사";
+          }
+          return Text(displayName, style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold));
+        }
+      );
+    }
+    return Text(authorId, style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold));
+  }
+
+  // 🚀 [수정] 하드코딩되었던 "자취9단승규" 텍스트를 지우고 _buildDynamicAuthorName를 호출합니다.
+  Widget _buildAuthorRow(int likes, bool isLiked, String? authorId) => Row(children: [
+    const CircleAvatar(radius: 12, backgroundColor: Colors.grey), 
+    const SizedBox(width: 8), 
+    _buildDynamicAuthorName(authorId), 
+    const Spacer(), 
+    Icon(isLiked ? Icons.favorite : Icons.favorite_border, color: Colors.red), 
+    Text(" $likes", style: const TextStyle(fontWeight: FontWeight.bold))
+  ]);
 
   Widget _buildTipBox() => Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: const Color(0xFFF3E8FF), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE9D5FF))), child: const Row(children: [Icon(Icons.lightbulb, color: Colors.purple, size: 18), SizedBox(width: 15), Expanded(child: Text("[쿠팡]과 [컬리]에서 가격을 비교하고 알뜰하게 쇼핑하세요!", style: TextStyle(color: Color(0xFF9333EA), fontSize: 11, height: 1.3)))]));
 
@@ -199,7 +229,6 @@ class _DetailScreenState extends State<DetailScreen> {
   Widget _buildCommentHeader() => const Row(children: [Text("댓글", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), SizedBox(width: 6), Text("14", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange))]);
   Widget _buildCommentInput() => Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(30)), child: const Text("댓글을 남겨주세요...", style: TextStyle(color: Colors.grey, fontSize: 14)));
 
-  // 🚀 [수정] 하단 바: 투표하기 -> 찜하기 토글 버튼
   Widget _buildBottomVoteBar(BuildContext context, bool isLiked) {
     return SafeArea(
       child: Container(

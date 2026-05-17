@@ -77,7 +77,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
     String newNickname = _nicknameController.text.trim();
     String newIntro = _introController.text.trim();
-    String oldNickname = widget.currentNickname;
     final String? oldImageUrl = widget.currentImageUrl;
 
     if (newNickname.isEmpty) {
@@ -87,7 +86,18 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     }
 
     try {
-      if (newNickname != oldNickname) {
+      // 🚀 [핵심 추가] 파이어베이스에서 '진짜 현재 닉네임'을 확실하게 가져옵니다.
+      DocumentReference userRef = FirebaseFirestore.instance.collection('users').doc('my_profile');
+      DocumentSnapshot userDoc = await userRef.get();
+      String actualOldNickname = widget.currentNickname; // 기본값
+      
+      if (userDoc.exists) {
+        final data = userDoc.data() as Map<String, dynamic>;
+        actualOldNickname = data['nickname'] ?? widget.currentNickname;
+      }
+
+      // 진짜 닉네임과 다를 때만 중복 검사 실행
+      if (newNickname != actualOldNickname) {
         final duplicateCheck = await FirebaseFirestore.instance
             .collection('users')
             .where('nickname', isEqualTo: newNickname)
@@ -110,8 +120,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       }
 
       WriteBatch batch = FirebaseFirestore.instance.batch();
-      DocumentReference userRef = FirebaseFirestore.instance.collection('users').doc('my_profile');
       
+      // 1. 내 프로필 문서 업데이트
       batch.set(userRef, {
         'nickname': newNickname,
         'intro': newIntro,
@@ -120,11 +130,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         'cookingStyles': _selectedStyles,
       }, SetOptions(merge: true));
 
+      // 2. 🚀 [핵심 수정] DB에서 방금 꺼내온 '진짜 옛날 닉네임'으로 내가 쓴 레시피들을 싹 찾습니다!
       QuerySnapshot myRecipes = await FirebaseFirestore.instance
           .collection('recipes')
-          .where('authorId', isEqualTo: oldNickname)
+          .where('authorId', isEqualTo: actualOldNickname)
           .get();
 
+      // 3. 찾은 레시피들의 작성자 이름을 새 닉네임으로 모두 교체!
       for (var doc in myRecipes.docs) {
         batch.update(doc.reference, {'authorId': newNickname});
       }
@@ -229,7 +241,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                         ),
                         backgroundColor: Colors.grey[50],
-                        // 🚀 [수정 완료] 기존의 'border: Border.all()'을 FilterChip 전용인 'side: BorderSide()'로 교체했습니다!
                         side: BorderSide(color: isSelected ? Colors.orange : Colors.grey[200]!),
                         onSelected: (selected) {
                           setState(() {

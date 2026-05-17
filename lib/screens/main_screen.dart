@@ -41,7 +41,7 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  // 🚀 [수정] 글쓰기 화면으로 갈 때 닉네임과 UID를 모두 챙겨갑니다.
+  // 🚀 [수정] 글쓰기 화면으로 갈 때 닉네임과 UID('my_profile')를 모두 챙겨갑니다.
   Future<void> _navigateToWrite() async {
     try {
       final doc = await FirebaseFirestore.instance
@@ -56,13 +56,13 @@ class _MainScreenState extends State<MainScreen> {
 
       if (!mounted) return;
       
-      // ✅ [핵심 수정] currentUid를 'my_profile'로 함께 전달합니다.
+      // ✅ [핵심 수정] currentUid를 'my_profile'로 확실하게 함께 전달합니다.
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => WriteScreen(
             currentNickname: latestNick,
-            currentUid: 'my_profile', // 👈 이 줄이 추가되었습니다!
+            currentUid: 'my_profile', // 👈 불변의 지문 UID 추가!
           ),
         ),
       );
@@ -70,13 +70,13 @@ class _MainScreenState extends State<MainScreen> {
       debugPrint("닉네임 가져오기 실패: $e");
       if (!mounted) return;
       
-      // ✅ [핵심 수정] 에러 시에도 UID를 함께 전달합니다. (const 제거)
+      // ✅ 에러 시에도 UID를 함께 전달합니다.
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => WriteScreen(
             currentNickname: "자취9단승규",
-            currentUid: 'my_profile', // 👈 이 줄이 추가되었습니다!
+            currentUid: 'my_profile', // 👈 에러 방어용 UID 추가!
           ),
         ),
       );

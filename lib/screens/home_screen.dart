@@ -84,7 +84,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   _buildSortTab("인기순"),
                   const SizedBox(width: 15),
                   _buildSortTab("최신순"),
-                  // 🚀 [수정] 아무 기능이 없던 Spacer와 조절바(tune) 아이콘을 흔적도 없이 도려냈습니다!
                 ],
               ),
             ),
@@ -92,7 +91,6 @@ class _HomeScreenState extends State<HomeScreen> {
             StreamBuilder<List<RecipeModel>>(
               stream: _getRecipeStream(),
               builder: (context, snapshot) {
-                // 🚀 에러 발생 시 화면에 표시 (Index 문제 등 확인용)
                 if (snapshot.hasError) {
                   return Padding(
                     padding: const EdgeInsets.all(40.0),
@@ -194,6 +192,31 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // 🚀 [구조 업그레이드] 작성자 닉네임을 실시간으로 유저 창고에서 가져오는 마법의 위젯
+  Widget _buildDynamicAuthorName(String? authorId) {
+    if (authorId == null || authorId.isEmpty) {
+      return Text("무명요리사", style: TextStyle(color: Colors.grey[500], fontSize: 13, fontWeight: FontWeight.bold));
+    }
+
+    // 작성자 ID가 'my_profile' (고유 UID)인 경우, 유저 창고에서 실시간으로 닉네임을 긁어옵니다.
+    if (authorId == 'my_profile') {
+      return StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance.collection('users').doc(authorId).snapshots(),
+        builder: (context, snapshot) {
+          String displayName = "로딩중..."; // 데이터를 가져오는 찰나의 순간
+          if (snapshot.hasData && snapshot.data!.exists) {
+            final userData = snapshot.data!.data() as Map<String, dynamic>;
+            displayName = userData['nickname'] ?? "무명요리사";
+          }
+          return Text(displayName, style: TextStyle(color: Colors.grey[500], fontSize: 13, fontWeight: FontWeight.bold));
+        }
+      );
+    }
+
+    // 만약 옛날에 텍스트("자취9단승규")로 저장된 과거 글이라면 앱이 터지지 않게 그냥 그대로 보여줍니다.
+    return Text(authorId, style: TextStyle(color: Colors.grey[500], fontSize: 13, fontWeight: FontWeight.bold));
+  }
+
   Widget _buildFeedCard(BuildContext context, {required RecipeModel recipe, required int rank}) {
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => DetailScreen(recipeData: recipe))),
@@ -238,7 +261,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       const Icon(Icons.person_outline, size: 16, color: Colors.grey),
                       const SizedBox(width: 6),
-                      Text(recipe.authorId ?? "무명요리사", style: TextStyle(color: Colors.grey[500], fontSize: 13, fontWeight: FontWeight.bold)),
+                      // 🚀 기존 Text 위젯을 지우고 방금 만든 실시간 연동 위젯으로 교체!
+                      _buildDynamicAuthorName(recipe.authorId),
                       const Spacer(),
                       const Icon(Icons.favorite, color: Colors.red, size: 16),
                       const SizedBox(width: 4),
@@ -268,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("🔥 실시간 랭킹전", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-            SizedBox(height: 10),
+            const SizedBox(height: 10),
             Text("지금 가장 핫한\n최고의 혼밥 조합은?\n참전하기 >", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, height: 1.2)),
           ],
         ),

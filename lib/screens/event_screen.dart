@@ -34,26 +34,26 @@ class EventScreen extends StatelessWidget {
                   latestNick = doc.data()!['nickname'] ?? "자취9단승규";
                 }
 
-                // 🚀 [핵심 수정] BattleWriteScreen을 부를 때 닉네임뿐만 아니라 UID('my_profile')도 함께 던져줍니다!
+                // 🚀 [핵심 수정 완료] BattleWriteScreen을 부를 때 UID('my_profile')도 확실하게 함께 던져줍니다!
                 if (!context.mounted) return;
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => BattleWriteScreen(
                       currentNickname: latestNick,
-                      currentUid: 'my_profile', // 👈 이 줄이 추가되어야 에러가 안 나요!
+                      currentUid: 'my_profile', // 👈 필수 지문(UID) 추가!
                     ),
                   ),
                 );
               } catch (e) {
-                // 혹시 에러가 나면 기본값으로라도 이동하게 함
+                // 혹시 에러가 나더라도 기본값과 UID를 챙겨서 이동하게 함
                 if (!context.mounted) return;
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => const BattleWriteScreen(
                       currentNickname: "자취9단승규",
-                      currentUid: 'my_profile', // 👈 여기도 똑같이 추가!
+                      currentUid: 'my_profile', // 👈 여기도 에러 방어용으로 추가!
                     ),
                   ),
                 );
