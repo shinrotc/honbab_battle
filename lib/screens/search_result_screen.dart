@@ -57,7 +57,7 @@ class SearchResultScreen extends StatelessWidget {
           }).toList();
 
           if (filteredDocs.isEmpty) {
-            return const Center(child: Text("조건에 맞는 마라 요리가 아직 없어요! 😅"));
+            return const Center(child: Text("조건에 맞는 요리가 아직 없어요! 😅"));
           }
 
           return ListView.separated(

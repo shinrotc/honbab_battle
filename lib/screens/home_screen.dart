@@ -84,8 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   _buildSortTab("인기순"),
                   const SizedBox(width: 15),
                   _buildSortTab("최신순"),
-                  const Spacer(),
-                  const Icon(Icons.tune, size: 16, color: Colors.grey),
+                  // 🚀 [수정] 아무 기능이 없던 Spacer와 조절바(tune) 아이콘을 흔적도 없이 도려냈습니다!
                 ],
               ),
             ),
@@ -239,7 +238,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       const Icon(Icons.person_outline, size: 16, color: Colors.grey),
                       const SizedBox(width: 6),
-                      // 🚀 [수정] 작성자 ID(닉네임)를 실제 데이터에서 가져옴
                       Text(recipe.authorId ?? "무명요리사", style: TextStyle(color: Colors.grey[500], fontSize: 13, fontWeight: FontWeight.bold)),
                       const Spacer(),
                       const Icon(Icons.favorite, color: Colors.red, size: 16),
