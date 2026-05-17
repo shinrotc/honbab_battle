@@ -9,12 +9,16 @@ class ProfileEditScreen extends StatefulWidget {
   final String currentNickname;
   final String currentIntro;
   final String? currentImageUrl;
+  final String? currentCareer;
+  final List<String>? currentCookingStyles;
 
   const ProfileEditScreen({
     super.key,
     required this.currentNickname,
     required this.currentIntro,
     this.currentImageUrl,
+    this.currentCareer,
+    this.currentCookingStyles,
   });
 
   @override
@@ -30,12 +34,23 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   XFile? _pickedFile; 
   String? _currentImageUrl; 
 
+  String? _selectedCareer;
+  List<String> _selectedStyles = [];
+
+  final List<String> _careerOptions = ["1년 미만", "1~3년", "3~5년", "5년 이상", "자취 만렙"];
+  final List<String> _styleOptions = ["가성비파", "초간단파", "건강식파", "술안주파", "장인정신파"];
+
   @override
   void initState() {
     super.initState();
     _nicknameController = TextEditingController(text: widget.currentNickname);
     _introController = TextEditingController(text: widget.currentIntro);
     _currentImageUrl = widget.currentImageUrl;
+
+    _selectedCareer = widget.currentCareer;
+    _selectedStyles = widget.currentCookingStyles != null 
+        ? List<String>.from(widget.currentCookingStyles!) 
+        : [];
   }
 
   Future<void> _pickImage() async {
@@ -57,7 +72,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     return await ref.getDownloadURL();
   }
 
-  // 🚀 [핵심 추가] 프로필 저장 로직 (중복 검사 포함)
   Future<void> _saveProfile() async {
     setState(() => _isLoading = true);
 
@@ -66,7 +80,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     String oldNickname = widget.currentNickname;
     final String? oldImageUrl = widget.currentImageUrl;
 
-    // 1. 닉네임 입력 확인
     if (newNickname.isEmpty) {
       _showSnackBar("닉네임을 입력해주세요!");
       setState(() => _isLoading = false);
@@ -74,8 +87,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     }
 
     try {
-      // 🚀 2. [닉네임 중복 검사] 
-      // 내 현재 닉네임과 다를 때만 검사합니다.
       if (newNickname != oldNickname) {
         final duplicateCheck = await FirebaseFirestore.instance
             .collection('users')
@@ -85,11 +96,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         if (duplicateCheck.docs.isNotEmpty) {
           _showSnackBar("이미 사용 중인 닉네임입니다. 다른 이름을 골라보세요! 😊");
           setState(() => _isLoading = false);
-          return; // 중복이면 여기서 중단!
+          return;
         }
       }
 
-      // 3. 사진 업로드 및 서버 청소
       String? newImageUrl = await _uploadProfileImage();
       if (newImageUrl != oldImageUrl && oldImageUrl != null && oldImageUrl.isNotEmpty) {
         try {
@@ -99,7 +109,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         }
       }
 
-      // 4. 파이어베이스 일괄 업데이트 (Batch)
       WriteBatch batch = FirebaseFirestore.instance.batch();
       DocumentReference userRef = FirebaseFirestore.instance.collection('users').doc('my_profile');
       
@@ -107,6 +116,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         'nickname': newNickname,
         'intro': newIntro,
         'profileImagePath': newImageUrl, 
+        'career': _selectedCareer,
+        'cookingStyles': _selectedStyles,
       }, SetOptions(merge: true));
 
       QuerySnapshot myRecipes = await FirebaseFirestore.instance
@@ -185,6 +196,53 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 TextField(
                   controller: _nicknameController,
                   decoration: _buildInputDecoration("새로운 닉네임을 입력하세요"),
+                ),
+                const SizedBox(height: 30),
+
+                _buildInputLabel("자취 경력"),
+                DropdownButtonFormField<String>(
+                  value: _selectedCareer,
+                  items: _careerOptions.map((String value) {
+                    return DropdownMenuItem<String>(value: value, child: Text(value));
+                  }).toList(),
+                  onChanged: (newValue) => setState(() => _selectedCareer = newValue),
+                  decoration: _buildInputDecoration("자취 경력을 선택해 주세요"),
+                  dropdownColor: Colors.white,
+                ),
+                const SizedBox(height: 30),
+
+                _buildInputLabel("나의 요리 성향 (다중 선택)"),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: 8.0,
+                    runSpacing: 4.0,
+                    children: _styleOptions.map((style) {
+                      final isSelected = _selectedStyles.contains(style);
+                      return FilterChip(
+                        label: Text(style),
+                        selected: isSelected,
+                        selectedColor: Colors.orange.withOpacity(0.15),
+                        checkmarkColor: Colors.orange,
+                        labelStyle: TextStyle(
+                          color: isSelected ? Colors.orange[800] : Colors.black87,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        backgroundColor: Colors.grey[50],
+                        // 🚀 [수정 완료] 기존의 'border: Border.all()'을 FilterChip 전용인 'side: BorderSide()'로 교체했습니다!
+                        side: BorderSide(color: isSelected ? Colors.orange : Colors.grey[200]!),
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _selectedStyles.add(style);
+                            } else {
+                              _selectedStyles.remove(style);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
                 ),
                 const SizedBox(height: 30),
 
