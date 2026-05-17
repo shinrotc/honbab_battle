@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'notification_screen.dart';
 import 'sub_pages.dart'; 
 import 'login_screen.dart';
-import 'profile_edit_screen.dart'; // 🚀 [추가] 수정 페이지 연결
+import 'profile_edit_screen.dart'; 
 
 class MyPageScreen extends StatelessWidget {
   const MyPageScreen({super.key});
@@ -26,18 +26,24 @@ class MyPageScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 🚀 [핵심] users 컬렉션의 내 정보를 실시간으로 감시합니다.
+    // 🚀 [수정] sg_user -> my_profile 로 변경하여 수정 페이지와 문서 ID를 맞춤!
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').doc('sg_user').snapshots(),
+      stream: FirebaseFirestore.instance.collection('users').doc('my_profile').snapshots(),
       builder: (context, userSnapshot) {
-        // 기본값 설정 (데이터가 아직 없거나 로딩 중일 때)
+        // 기본값 설정 
         String nickname = "자취9단 승규";
         String intro = "한 번 먹어보면 대부분 만듭니다. 가성비와 맛을 모두 잡는 자취 요리 연구가입니다! 🍳";
+        String? career;
+        List<String>? cookingStyles;
 
         if (userSnapshot.hasData && userSnapshot.data!.exists) {
           final userData = userSnapshot.data!.data() as Map<String, dynamic>;
           nickname = userData['nickname'] ?? nickname;
           intro = userData['intro'] ?? intro;
+          career = userData['career']; // 🚀 DB에서 자취 경력 가져오기
+          if (userData['cookingStyles'] != null) {
+            cookingStyles = List<String>.from(userData['cookingStyles']); // 🚀 DB에서 요리 성향 가져오기
+          }
         }
 
         return Scaffold(
@@ -59,10 +65,9 @@ class MyPageScreen extends StatelessWidget {
             child: Column(
               children: [
                 const SizedBox(height: 20),
-                // 🚀 수정된 프로필 섹션 (닉네임, 소개 전달)
-                _buildProfileSection(context, nickname, intro),
+                // 🚀 프로필 섹션에 경력, 요리 성향 데이터 추가 전달
+                _buildProfileSection(context, nickname, intro, career, cookingStyles),
                 
-                // 🚀 실시간 활동 통계 보드 (바뀐 닉네임으로 쿼리)
                 _buildStatsBoard(nickname),
 
                 const SizedBox(height: 30),
@@ -76,11 +81,11 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
-  // 1. 프로필 섹션 (수정 버튼 활성화!)
-  Widget _buildProfileSection(BuildContext context, String nickname, String intro) {
+  // 1. 프로필 섹션 
+  Widget _buildProfileSection(BuildContext context, String nickname, String intro, String? career, List<String>? cookingStyles) {
     return Column(
       children: [
-        Stack( // 🚀 이미지 위에 편집 버튼을 올리기 위해 Stack 사용
+        Stack( 
           alignment: Alignment.bottomRight,
           children: [
             Container(
@@ -91,11 +96,15 @@ class MyPageScreen extends StatelessWidget {
                 backgroundImage: NetworkImage("https://images.unsplash.com/photo-1566753323558-f4e0952af115?w=200"),
               ),
             ),
-            // 🔥 [수정 버튼 클릭 이벤트 추가]
             GestureDetector(
               onTap: () {
                 Navigator.push(context, MaterialPageRoute(
-                  builder: (context) => ProfileEditScreen(currentNickname: nickname, currentIntro: intro)
+                  builder: (context) => ProfileEditScreen(
+                    currentNickname: nickname, 
+                    currentIntro: intro,
+                    currentCareer: career,               // 🚀 수정 페이지로 기존 경력 넘겨주기
+                    currentCookingStyles: cookingStyles, // 🚀 수정 페이지로 기존 성향 넘겨주기
+                  )
                 ));
               },
               child: Container(
@@ -112,7 +121,40 @@ class MyPageScreen extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Text(nickname, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-        const SizedBox(height: 12),
+        
+        // 🚀 [핵심 추가] 자취 경력 & 요리 성향을 보여주는 태그(배지) 영역
+        if (career != null || (cookingStyles != null && cookingStyles.isNotEmpty)) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              if (career != null && career.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange),
+                  ),
+                  child: Text("👑 $career", style: TextStyle(fontSize: 12, color: Colors.orange[800], fontWeight: FontWeight.bold)),
+                ),
+              if (cookingStyles != null)
+                ...cookingStyles.map((style) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: Text("#$style", style: TextStyle(fontSize: 12, color: Colors.grey[800], fontWeight: FontWeight.w500)),
+                )).toList(),
+            ],
+          ),
+        ],
+
+        const SizedBox(height: 14),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Container(
@@ -129,7 +171,7 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
-  // 2. 통계 보드 (닉네임 연동)
+  // 2. 통계 보드 
   Widget _buildStatsBoard(String nickname) {
     return StreamBuilder<Map<String, int>>(
       stream: _getUserStats(nickname),
@@ -162,7 +204,7 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
-  // 3. 메뉴 리스트 (닉네임 전달)
+  // 3. 메뉴 리스트 
   Widget _buildMenuSection(BuildContext context, String nickname) {
     return Column(
       children: [
